@@ -133,7 +133,15 @@ class Store(Workspace):
             connection.close()
 
     def mutate(self, actor, action, data):
-        p = PERSONAS[actor]
+        p = self.persona(actor)
+        if action == 'source':
+            return {'source': self.source(actor, data.get('id'), data.get('version'))}
+        if action == 'history':
+            return {'versions': self.history(actor, data.get('id'))}
+        if action == 'trash':
+            return {'docs': self.trash(actor)}
+        if action == 'restore':
+            return self.restore(actor, data.get('id'))
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
@@ -142,6 +150,8 @@ class Store(Workspace):
             if doc_id and (not old or old['owner'] != actor or old['workspace'] != p['workspace']):
                 self.log(actor, 'denied', 'Document modification denied')
                 raise ValueError('You can only modify documents you own in this workspace.')
+            if old and old['deleted']:
+                raise ValueError('Restore this source before editing or deleting it.')
             if action == 'delete':
                 if not old:
                     raise ValueError('Choose a document.')
