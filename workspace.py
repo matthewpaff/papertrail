@@ -61,3 +61,23 @@ class Workspace:
         self.reindex()
         self.log(actor, 'restored', 'Document ' + str(doc_id))
         return {}
+
+    @staticmethod
+    def metadata(data):
+        collection = data.get('collection', '')
+        tags = data.get('tags', [])
+        if not isinstance(collection, str) or len(collection) > 60:
+            raise ValueError('Collection must be text up to 60 characters.')
+        if not isinstance(tags, list) or len(tags) > 12 or any(not isinstance(t, str) or not 1 <= len(t.strip()) <= 30 for t in tags):
+            raise ValueError('Use at most 12 text tags of 1–30 characters.')
+        return collection.strip(), sorted(set(t.strip().lower() for t in tags))
+
+    def set_metadata(self, actor, data):
+        row = self.owned(actor, data.get('id'))
+        if row['deleted']:
+            raise ValueError('Restore the source before editing metadata.')
+        collection, tags = self.metadata(data)
+        self.db.execute('UPDATE docs SET collection=?,tags=?,version=version+1 WHERE id=?', (collection, json.dumps(tags), row['id']))
+        self.snapshot(row['id'])
+        self.log(actor, 'metadata', 'Document ' + str(row['id']))
+        return {}
