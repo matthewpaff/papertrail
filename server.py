@@ -144,6 +144,8 @@ class Store(Workspace):
             return self.restore(actor, data.get('id'))
         if action == 'metadata':
             return self.set_metadata(actor, data)
+        if action == 'library':
+            return self.library(actor, data)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):

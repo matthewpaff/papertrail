@@ -81,3 +81,32 @@ class Workspace:
         self.snapshot(row['id'])
         self.log(actor, 'metadata', 'Document ' + str(row['id']))
         return {}
+
+    def filtered(self, actor, filters=None):
+        filters = {} if filters is None else filters
+        if not isinstance(filters, dict) or set(filters) - {'owner', 'visibility', 'collection', 'tag', 'bookmarked'}:
+            raise ValueError('Unknown search filter.')
+        for key, value in filters.items():
+            if key == 'bookmarked':
+                if type(value) is not bool:
+                    raise ValueError('Bookmark filter must be boolean.')
+            elif not isinstance(value, str) or len(value) > 60:
+                raise ValueError('Filter values must be bounded text.')
+        rows = self.visible(actor)
+        for key in ('owner', 'visibility', 'collection'):
+            if filters.get(key):
+                rows = [r for r in rows if r[key] == filters[key]]
+        if filters.get('tag'):
+            rows = [r for r in rows if filters['tag'].lower() in json.loads(r['tags'])]
+        return rows
+
+    @staticmethod
+    def page_bounds(offset, limit):
+        if type(offset) is not int or not 0 <= offset <= 100000 or type(limit) is not int or not 1 <= limit <= 50:
+            raise ValueError('Offset must be 0–100000 and limit 1–50.')
+
+    def library(self, actor, data):
+        offset, limit = data.get('offset', 0), data.get('limit', 12)
+        self.page_bounds(offset, limit)
+        rows = self.filtered(actor, data.get('filters'))
+        return {'docs': [dict(r) for r in rows[offset:offset + limit]], 'total': len(rows), 'offset': offset, 'limit': limit}
