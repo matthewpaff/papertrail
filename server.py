@@ -67,34 +67,7 @@ class Store(Workspace):
     def ask(self, actor, query, use_model=False):
         if not isinstance(query, str) or len(query) > 2000:
             raise ValueError('Question must be text up to 2,000 characters.')
-        # Build the allowed set before any search. FTS runs only over these rows.
-        allowed = self.visible(actor)
-        terms = list(dict.fromkeys(re.findall(r'[a-zA-Z0-9]{2,}', query.lower())))[:24]
-        stop = {'the', 'what', 'when', 'where', 'who', 'does', 'about', 'are', 'and', 'for', 'with', 'can', 'how', 'was', 'this', 'that', 'is', 'my'}
-        terms = [t for t in terms if t not in stop]
-        scored = []
-        if terms and allowed:
-            if self.fts:
-                # A transient FTS table contains authorized documents only.
-                self.db.execute('CREATE VIRTUAL TABLE IF NOT EXISTS temp.allowed_search USING fts5(title,body)')
-                self.db.execute('DELETE FROM temp.allowed_search')
-                self.db.executemany('INSERT INTO temp.allowed_search(rowid,title,body) VALUES(?,?,?)', [(d['id'], d['title'], d['body']) for d in allowed])
-                match = ' OR '.join('"' + t + '"' for t in terms)
-                ids = {r[0] for r in self.db.execute('SELECT rowid FROM temp.allowed_search WHERE allowed_search MATCH ?', (match,))}
-            else:
-                ids = {d['id'] for d in allowed}
-            for d in allowed:
-                if d['id'] not in ids:
-                    continue
-                for sentence in re.split(r'(?<=[.!?])\s+|\n+', d['body']):
-                    words = set(re.findall(r'\w+', sentence.lower()))
-                    score = len(words.intersection(terms))
-                    if score:
-                        scored.append((score, d, sentence))
-        scored.sort(key=lambda x: -x[0])
-        sources = []
-        for _, doc, sentence in scored[:3]:
-            sources.append({'id': doc['id'], 'version': doc['version'], 'title': doc['title'], 'snippet': sentence})
+        sources = self.search(actor, {'query': query, 'limit': 3})['sources']
         self.log(actor, 'retrieval', 'Returned %s evidence excerpts' % len(sources))
         result = {'answer': 'Relevant excerpts from your accessible notes are shown below. These are exact extracts, not a generated answer.' if sources else 'Insufficient evidence in your accessible notes. Try a specific topic or add a source; I cannot infer an answer from missing evidence.', 'sources': sources, 'abstained': not sources, 'mode': 'extractive'}
         if use_model:
