@@ -121,6 +121,10 @@ class Store(Workspace):
             return self.library(actor, data)
         if action == 'search':
             return self.search(actor, data)
+        if action == 'bookmark':
+            return self.bookmark(actor, data)
+        if action == 'bookmarks':
+            return {'ids': self.bookmarks(actor)}
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
