@@ -12,6 +12,9 @@ class Workspace:
                 self.db.execute('ALTER TABLE docs ADD COLUMN ' + name + ' ' + definition)
         self.db.execute('''CREATE TABLE IF NOT EXISTS versions(doc INTEGER,version INTEGER,title TEXT,body TEXT,owner TEXT,workspace TEXT,visibility TEXT,collection TEXT,tags TEXT,created TEXT DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(doc,version))''')
         self.db.execute('CREATE TABLE IF NOT EXISTS bookmarks(actor TEXT, doc INTEGER, PRIMARY KEY(actor,doc))')
+        proposal_columns = {r[1] for r in self.db.execute('PRAGMA table_info(proposals)')}
+        if 'expires' not in proposal_columns:
+            self.db.execute('ALTER TABLE proposals ADD COLUMN expires INTEGER NOT NULL DEFAULT 0')
         self.db.execute('''INSERT OR IGNORE INTO versions(doc,version,title,body,owner,workspace,visibility,collection,tags) SELECT id,version,title,body,owner,workspace,visibility,collection,tags FROM docs''')
         self.db.commit()
 
@@ -118,6 +121,25 @@ class Workspace:
 
     def bookmarks(self, actor):
         return [d['id'] for d in self.filtered(actor, {'bookmarked': True})]
+
+    def proposal(self, actor, token):
+        if not isinstance(token, str) or not 1 <= len(token) <= 100:
+            raise ValueError('Invalid proposal token.')
+        row = self.db.execute('SELECT * FROM proposals WHERE id=? AND actor=? AND workspace=?', (token, actor, self.persona(actor)['workspace'])).fetchone()
+        if not row or row['status'] != 'pending':
+            self.log(actor, 'denied', 'Unavailable proposal transition')
+            raise ValueError('Proposal unavailable or already resolved.')
+        if row['expires'] <= int(time.time()):
+            self.db.execute("UPDATE proposals SET status='expired' WHERE id=?", (token,))
+            self.log(actor, 'expired', 'Proposal expired')
+            raise ValueError('Proposal expired; create a new proposal.')
+        return row
+
+    def cancel_proposal(self, actor, token):
+        row = self.proposal(actor, token)
+        self.db.execute("UPDATE proposals SET status='cancelled' WHERE id=?", (row['id'],))
+        self.log(actor, 'cancelled', 'Proposal cancelled')
+        return {}
 
     @staticmethod
     def page_bounds(offset, limit):
