@@ -128,6 +128,10 @@ class Store(Workspace):
             return {'ids': self.bookmarks(actor)}
         if action == 'cancel-proposal':
             return self.cancel_proposal(actor, data.get('proposal'))
+        if action == 'task-status':
+            return self.task_transition(actor, data)
+        if action == 'pending-proposals':
+            return {'proposals': self.pending_proposals(actor)}
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
