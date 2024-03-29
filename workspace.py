@@ -161,6 +161,29 @@ class Workspace:
         now = int(time.time())
         return [dict(r) for r in self.db.execute("SELECT id AS proposal,title,workspace,expires FROM proposals WHERE actor=? AND workspace=? AND status='pending' AND expires>? ORDER BY expires DESC", (actor, self.persona(actor)['workspace'], now))]
 
+    def activity(self, actor, data):
+        self.persona(actor)
+        action = data.get('action', '')
+        if not isinstance(action, str) or len(action) > 40:
+            raise ValueError('Activity action must be bounded text.')
+        offset, limit = data.get('offset', 0), data.get('limit', 25)
+        self.page_bounds(offset, limit)
+        condition = 'actor=?'
+        args = [actor]
+        if action:
+            condition += ' AND action=?'
+            args.append(action)
+        total = self.db.execute('SELECT count(*) FROM audit WHERE ' + condition, args).fetchone()[0]
+        rows = self.db.execute('SELECT * FROM audit WHERE ' + condition + ' ORDER BY id DESC LIMIT ? OFFSET ?', args + [limit, offset])
+        events = []
+        for row in rows:
+            event = dict(row)
+            # Legacy records may contain a task title. Never export that content.
+            if event['action'] in ('proposed', 'executed'):
+                event['detail'] = 'Personal task event (content redacted)'
+            events.append(event)
+        return {'events': events, 'total': total, 'offset': offset, 'limit': limit}
+
     @staticmethod
     def page_bounds(offset, limit):
         if type(offset) is not int or not 0 <= offset <= 100000 or type(limit) is not int or not 1 <= limit <= 50:
