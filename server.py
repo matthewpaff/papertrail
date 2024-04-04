@@ -63,7 +63,7 @@ class Store(Workspace):
 
     def state(self, actor):
         p = PERSONAS[actor]
-        return {'personas': PERSONAS, 'actor': actor, 'docs': [dict(d) for d in self.visible(actor)], 'tasks': [dict(x) for x in self.db.execute('SELECT * FROM tasks WHERE workspace=? AND owner=?', (p['workspace'], actor))], 'audit': [dict(x) for x in self.db.execute('SELECT * FROM audit WHERE actor=? ORDER BY id DESC LIMIT 25', (actor,))], 'retrieval': 'SQLite FTS5' if self.fts else 'token overlap fallback', 'model_available': bool(self.model)}
+        return {'personas': PERSONAS, 'actor': actor, 'docs': [dict(d) for d in self.visible(actor)], 'tasks': [dict(x) for x in self.db.execute('SELECT * FROM tasks WHERE workspace=? AND owner=?', (p['workspace'], actor))], 'audit': self.activity(actor, {})['events'], 'retrieval': 'SQLite FTS5' if self.fts else 'token overlap fallback', 'model_available': bool(self.model)}
 
     def ask(self, actor, query, use_model=False):
         if not isinstance(query, str) or len(query) > 2000:
@@ -134,6 +134,8 @@ class Store(Workspace):
             return {'proposals': self.pending_proposals(actor)}
         if action == 'activity':
             return self.activity(actor, data)
+        if action == 'export-activity':
+            return self.export_activity(actor, data)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):

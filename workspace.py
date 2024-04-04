@@ -184,6 +184,17 @@ class Workspace:
             events.append(event)
         return {'events': events, 'total': total, 'offset': offset, 'limit': limit}
 
+    def export_activity(self, actor, data):
+        events = []
+        offset = 0
+        while len(events) < 1000:
+            page = self.activity(actor, {'action': data.get('action', ''), 'offset': offset, 'limit': 50})
+            events.extend(page['events'])
+            offset += 50
+            if offset >= page['total']:
+                break
+        return {'format': 'papertrail.activity.v1', 'actor': actor, 'events': events, 'truncated': len(events) < page['total']}
+
     @staticmethod
     def page_bounds(offset, limit):
         if type(offset) is not int or not 0 <= offset <= 100000 or type(limit) is not int or not 1 <= limit <= 50:
