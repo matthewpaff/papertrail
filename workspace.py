@@ -195,6 +195,32 @@ class Workspace:
                 break
         return {'format': 'papertrail.activity.v1', 'actor': actor, 'events': events, 'truncated': len(events) < page['total']}
 
+    def export_documents(self, actor):
+        documents = []
+        for row in self.visible(actor):
+            if row['owner'] != actor:
+                continue
+            documents.append({'title': row['title'], 'body': row['body'], 'visibility': row['visibility'], 'collection': row['collection'], 'tags': json.loads(row['tags'])})
+        return {'format': 'papertrail.documents.v1', 'documents': documents}
+
+    def validate_archive(self, archive):
+        if not isinstance(archive, dict) or set(archive) != {'format', 'documents'} or archive['format'] != 'papertrail.documents.v1':
+            raise ValueError('Expected a papertrail.documents.v1 archive.')
+        rows = archive['documents']
+        if not isinstance(rows, list) or len(rows) > 100:
+            raise ValueError('Import at most 100 documents at a time.')
+        clean = []
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {'title', 'body', 'visibility', 'collection', 'tags'}:
+                raise ValueError('Unknown or missing document fields.')
+            if not isinstance(row['title'], str) or not 1 <= len(row['title'].strip()) <= 120 or not isinstance(row['body'], str) or not 1 <= len(row['body'].strip()) <= 20000:
+                raise ValueError('Imported title or body is invalid.')
+            if row['visibility'] not in ('private', 'workspace'):
+                raise ValueError('Imported visibility is invalid.')
+            collection, tags = self.metadata(row)
+            clean.append((row['title'].strip(), row['body'].strip(), row['visibility'], collection, json.dumps(tags)))
+        return clean
+
     @staticmethod
     def page_bounds(offset, limit):
         if type(offset) is not int or not 0 <= offset <= 100000 or type(limit) is not int or not 1 <= limit <= 50:
