@@ -201,6 +201,13 @@ class Store(Workspace):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def local_host(self):
+        expected = {'127.0.0.1:' + str(self.server.server_port), 'localhost:' + str(self.server.server_port)}
+        if self.headers.get('Host') not in expected:
+            self.respond(403, {'error': 'Loopback Host required'})
+            return False
+        return True
+
     def respond(self, code, data, cookie=None):
         payload = json.dumps(data).encode()
         self.send_response(code)
@@ -216,6 +223,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.server.sessions.get(cookies.get('papertrail'), 'alex')
 
     def do_GET(self):
+        if not self.local_host():
+            return
         if self.path == '/api/health':
             return self.respond(200, {'ok': True, 'service': 'papertrail', 'mode': 'local-demo'})
         if self.path == '/api/state':
@@ -231,9 +240,13 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write((ROOT / name).read_bytes())
 
     def do_POST(self):
+        if not self.local_host():
+            return
         if self.headers.get('Origin') and self.headers['Origin'] != 'http://' + self.headers.get('Host', ''):
             return self.respond(403, {'error': 'Origin rejected'})
         try:
+            if self.headers.get_content_type() != 'application/json':
+                raise ValueError('Content-Type must be application/json.')
             size = int(self.headers.get('Content-Length', '0'))
             if not 0 < size <= 40000:
                 raise ValueError('Request too large or empty.')
