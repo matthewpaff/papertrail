@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from workspace import Workspace
+from contracts import validate
 
 ROOT = Path(__file__).parent
 PERSONAS = {'alex': {'name': 'Alex Morgan', 'workspace': 'studio'}, 'sam': {'name': 'Sam Rivera', 'workspace': 'studio'}, 'jules': {'name': 'Jules Chen', 'workspace': 'field'}}
@@ -254,6 +255,9 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError('Expected a JSON object.')
             action = self.path.removeprefix('/api/')
+            if not self.path.startswith('/api/'):
+                raise ValueError('Unknown API action.')
+            validate(action, data)
             if action == 'identity':
                 actor = data.get('actor')
                 if actor not in PERSONAS:
