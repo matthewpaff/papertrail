@@ -78,15 +78,20 @@ class Store(Workspace):
             if sources:
                 try:
                     generated = self.generate(query, sources)
+                    if set(generated) != {'answer', 'citations', 'abstained'}:
+                        raise ValueError('Unknown model fields')
                     citations = generated.get('citations')
                     allowed = {(s['id'], s['version']) for s in sources}
-                    valid = isinstance(citations, list) and bool(citations) and all(isinstance(c, dict) and type(c.get('id')) is int and type(c.get('version')) is int and (c['id'], c['version']) in allowed for c in citations)
+                    valid = isinstance(citations, list) and 1 <= len(citations) <= 3 and all(isinstance(c, dict) and set(c) == {'id', 'version'} and type(c.get('id')) is int and type(c.get('version')) is int and (c['id'], c['version']) in allowed for c in citations)
                     answer = generated.get('answer')
+                    if generated.get('abstained') is True and citations == []:
+                        result.update(answer='The local model reported insufficient evidence. Review the source excerpts below.', abstained=True, mode='model', model_status='abstained')
+                        return result
                     if not valid or not isinstance(answer, str) or not 1 <= len(answer) <= 5000 or generated.get('abstained') is not False:
                         raise ValueError('Unsupported model response')
-                    result.update(answer=answer, mode='model')
+                    result.update(answer=answer, mode='model', citations=citations, model_status='unverified')
                 except (ValueError, KeyError, TypeError, OSError, http.client.HTTPException):
-                    result.update(answer='Insufficient verified model evidence: the local model failed or returned invalid citations. Review the retrieved extracts below.', abstained=True, mode='model')
+                    result.update(answer='Insufficient verified model evidence: the local model failed or returned invalid citations. Review the retrieved extracts below.', abstained=True, mode='model', model_status='rejected')
         return result
 
     def generate(self, query, sources):
@@ -100,7 +105,10 @@ class Store(Workspace):
             raw = response.read(100001)
             if response.status != 200 or len(raw) > 100000:
                 raise ValueError('Model response rejected')
-            decoded = json.loads(json.loads(raw)['message']['content'])
+            envelope = json.loads(raw)
+            if not isinstance(envelope, dict) or not isinstance(envelope.get('message'), dict) or not isinstance(envelope['message'].get('content'), str):
+                raise ValueError('Invalid model envelope')
+            decoded = json.loads(envelope['message']['content'])
             if not isinstance(decoded, dict):
                 raise ValueError('Expected object')
             return decoded
