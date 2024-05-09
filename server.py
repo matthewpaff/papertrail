@@ -149,6 +149,10 @@ class Store(Workspace):
             return self.export_documents(actor)
         if action == 'import-documents':
             return self.import_documents(actor, data.get('archive'))
+        if action == 'collections':
+            return {'collections': self.collections(actor)}
+        if action == 'rename-collection':
+            return self.rename_collection(actor, data)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):

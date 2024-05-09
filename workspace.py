@@ -241,6 +241,31 @@ class Workspace:
         self.log(actor, 'imported', str(len(created)) + ' sources imported; ' + str(skipped) + ' duplicates skipped')
         return {'created': created, 'skipped': skipped}
 
+    def collections(self, actor):
+        counts = {}
+        for row in self.visible(actor):
+            if row['owner'] == actor and row['collection']:
+                counts[row['collection']] = counts.get(row['collection'], 0) + 1
+        return [{'name': key, 'count': counts[key]} for key in sorted(counts)]
+
+    def rename_collection(self, actor, data):
+        source, target = data.get('source'), data.get('target')
+        if not isinstance(source, str) or not 1 <= len(source) <= 60 or not isinstance(target, str) or len(target) > 60 or source == target.strip():
+            raise ValueError('Choose distinct collection names up to 60 characters.')
+        if type(data.get('merge', False)) is not bool:
+            raise ValueError('Merge option must be boolean.')
+        target = target.strip()
+        names = {c['name'] for c in self.collections(actor)}
+        if source not in names or (target in names and not data.get('merge')):
+            raise ValueError('Source unavailable or target already exists; explicitly allow a merge.')
+        rows = [r for r in self.visible(actor) if r['owner'] == actor and r['collection'] == source]
+        with self.db:
+            for row in rows:
+                self.db.execute('UPDATE docs SET collection=?,version=version+1 WHERE id=?', (target, row['id']))
+                self.db.execute('''INSERT INTO versions(doc,version,title,body,owner,workspace,visibility,collection,tags) SELECT id,version,title,body,owner,workspace,visibility,collection,tags FROM docs WHERE id=?''', (row['id'],))
+        self.log(actor, 'collection-renamed', str(len(rows)) + ' owned sources updated')
+        return {'updated': len(rows)}
+
     @staticmethod
     def page_bounds(offset, limit):
         if type(offset) is not int or not 0 <= offset <= 100000 or type(limit) is not int or not 1 <= limit <= 50:

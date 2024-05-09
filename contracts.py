@@ -12,6 +12,7 @@ FIELDS = {
     'task-status': {'id', 'status'}, 'activity': {'action', 'offset', 'limit'},
     'export-activity': {'action'}, 'export-documents': set(),
     'import-documents': {'archive'},
+    'collections': set(), 'rename-collection': {'source', 'target', 'merge'},
 }
 
 
