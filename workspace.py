@@ -266,6 +266,21 @@ class Workspace:
         self.log(actor, 'collection-renamed', str(len(rows)) + ' owned sources updated')
         return {'updated': len(rows)}
 
+    def restore_revision(self, actor, data):
+        current = self.owned(actor, data.get('id'))
+        if current['deleted']:
+            raise ValueError('Restore the source from trash first.')
+        old = self.source(actor, current['id'], data.get('version'))
+        if old['version'] == current['version']:
+            raise ValueError('This revision is already current.')
+        # Retain current sharing when restoring old content to avoid accidental
+        # publication of a previously shared historical visibility setting.
+        self.db.execute('UPDATE docs SET title=?,body=?,collection=?,tags=?,version=version+1 WHERE id=?', (old['title'], old['body'], old['collection'], old['tags'], current['id']))
+        self.snapshot(current['id'])
+        self.reindex()
+        self.log(actor, 'revision-restored', 'Document ' + str(current['id']) + ' from version ' + str(old['version']))
+        return {'version': current['version'] + 1}
+
     @staticmethod
     def page_bounds(offset, limit):
         if type(offset) is not int or not 0 <= offset <= 100000 or type(limit) is not int or not 1 <= limit <= 50:

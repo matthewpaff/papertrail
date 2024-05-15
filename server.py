@@ -153,6 +153,8 @@ class Store(Workspace):
             return {'collections': self.collections(actor)}
         if action == 'rename-collection':
             return self.rename_collection(actor, data)
+        if action == 'restore-revision':
+            return self.restore_revision(actor, data)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
