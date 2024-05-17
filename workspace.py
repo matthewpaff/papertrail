@@ -2,6 +2,7 @@
 import json
 import re
 import time
+from datetime import date
 
 
 class Workspace:
@@ -17,6 +18,9 @@ class Workspace:
             self.db.execute('ALTER TABLE proposals ADD COLUMN expires INTEGER NOT NULL DEFAULT 0')
         if 'status' not in {r[1] for r in self.db.execute('PRAGMA table_info(tasks)')}:
             self.db.execute("ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'open'")
+        for table in ('tasks', 'proposals'):
+            if 'due' not in {r[1] for r in self.db.execute('PRAGMA table_info(' + table + ')')}:
+                self.db.execute('ALTER TABLE ' + table + " ADD COLUMN due TEXT NOT NULL DEFAULT ''")
         self.db.execute('''INSERT OR IGNORE INTO versions(doc,version,title,body,owner,workspace,visibility,collection,tags) SELECT id,version,title,body,owner,workspace,visibility,collection,tags FROM docs''')
         self.db.commit()
 
@@ -155,6 +159,28 @@ class Workspace:
             raise ValueError('Task already has this status.')
         self.db.execute('UPDATE tasks SET status=? WHERE id=?', (status, task_id))
         self.log(actor, 'task-' + status, 'Task ' + str(task_id))
+        return {}
+
+    @staticmethod
+    def due_date(value):
+        if value == '':
+            return value
+        if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+            raise ValueError('Due date must be YYYY-MM-DD or empty.')
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            raise ValueError('Due date is not a valid calendar date.') from None
+        return value
+
+    def task_due(self, actor, data):
+        task_id = self.positive(data.get('id'))
+        due = self.due_date(data.get('due'))
+        row = self.db.execute('SELECT id FROM tasks WHERE id=? AND owner=? AND workspace=?', (task_id, actor, self.persona(actor)['workspace'])).fetchone()
+        if not row:
+            raise ValueError('Task unavailable.')
+        self.db.execute('UPDATE tasks SET due=? WHERE id=?', (due, task_id))
+        self.log(actor, 'task-due', 'Task ' + str(task_id) + ' due date updated')
         return {}
 
     def pending_proposals(self, actor):
