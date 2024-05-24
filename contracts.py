@@ -15,6 +15,7 @@ FIELDS = {
     'collections': set(), 'rename-collection': {'source', 'target', 'merge'},
     'restore-revision': {'id', 'version'},
     'task-due': {'id', 'due'},
+    'tasks': {'status', 'due_before', 'offset', 'limit'},
 }
 
 

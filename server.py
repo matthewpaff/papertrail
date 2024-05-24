@@ -157,6 +157,8 @@ class Store(Workspace):
             return self.restore_revision(actor, data)
         if action == 'task-due':
             return self.task_due(actor, data)
+        if action == 'tasks':
+            return self.task_list(actor, data)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
