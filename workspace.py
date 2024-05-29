@@ -13,6 +13,7 @@ class Workspace:
                 self.db.execute('ALTER TABLE docs ADD COLUMN ' + name + ' ' + definition)
         self.db.execute('''CREATE TABLE IF NOT EXISTS versions(doc INTEGER,version INTEGER,title TEXT,body TEXT,owner TEXT,workspace TEXT,visibility TEXT,collection TEXT,tags TEXT,created TEXT DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(doc,version))''')
         self.db.execute('CREATE TABLE IF NOT EXISTS bookmarks(actor TEXT, doc INTEGER, PRIMARY KEY(actor,doc))')
+        self.db.execute('CREATE TABLE IF NOT EXISTS saved_queries(id INTEGER PRIMARY KEY,actor TEXT,name TEXT,query TEXT,filters TEXT,UNIQUE(actor,name))')
         proposal_columns = {r[1] for r in self.db.execute('PRAGMA table_info(proposals)')}
         if 'expires' not in proposal_columns:
             self.db.execute('ALTER TABLE proposals ADD COLUMN expires INTEGER NOT NULL DEFAULT 0')
@@ -193,6 +194,33 @@ class Workspace:
         rows = self.db.execute('SELECT * FROM tasks WHERE owner=? AND workspace=? ORDER BY (due=""),due,id', (actor, self.persona(actor)['workspace'])).fetchall()
         rows = [r for r in rows if (status == 'all' or r['status'] == status) and (not before or r['due'] and r['due'] <= before)]
         return {'tasks': [dict(r) for r in rows[offset:offset + limit]], 'total': len(rows), 'offset': offset, 'limit': limit}
+
+    def save_query(self, actor, data):
+        self.persona(actor)
+        name, query = data.get('name'), data.get('query')
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not isinstance(query, str) or not 1 <= len(query.strip()) <= 2000:
+            raise ValueError('Saved query needs a name up to 80 characters and text up to 2,000.')
+        filters = data.get('filters', {})
+        self.filtered(actor, filters)
+        count = self.db.execute('SELECT count(*) FROM saved_queries WHERE actor=?', (actor,)).fetchone()[0]
+        existing = self.db.execute('SELECT id FROM saved_queries WHERE actor=? AND name=?', (actor, name.strip())).fetchone()
+        if count >= 20 and not existing:
+            raise ValueError('Keep at most 20 saved queries per persona.')
+        self.db.execute('INSERT INTO saved_queries(actor,name,query,filters) VALUES(?,?,?,?) ON CONFLICT(actor,name) DO UPDATE SET query=excluded.query,filters=excluded.filters', (actor, name.strip(), query.strip(), json.dumps(filters, sort_keys=True)))
+        self.db.commit()
+        return {}
+
+    def saved_queries(self, actor):
+        self.persona(actor)
+        return [dict(r) for r in self.db.execute('SELECT id,name,query,filters FROM saved_queries WHERE actor=? ORDER BY name,id', (actor,))]
+
+    def delete_query(self, actor, query_id):
+        self.positive(query_id)
+        cursor = self.db.execute('DELETE FROM saved_queries WHERE id=? AND actor=?', (query_id, actor))
+        if not cursor.rowcount:
+            raise ValueError('Saved query unavailable.')
+        self.db.commit()
+        return {}
 
     def pending_proposals(self, actor):
         now = int(time.time())
