@@ -255,7 +255,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200, {'ok': True, 'service': 'papertrail', 'mode': 'local-demo'})
         if self.path == '/api/state':
             return self.respond(200, self.server.store.state(self.actor()))
-        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/dashboard.js': ('dashboard.js', 'text/javascript'), '/style.css': ('style.css', 'text/css')}
         if self.path not in files:
             return self.respond(404, {'error': 'Not found'})
         name, mime = files[self.path]
