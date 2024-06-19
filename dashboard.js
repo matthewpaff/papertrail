@@ -50,6 +50,23 @@ async function showSource(id, version){
   top.append(node('span','SOURCE #'+id+' · VERSION '+doc.version,'eyebrow'),control('button','Close',()=>sourceDialog.close()));
   sourceDialog.append(top,node('h2',doc.title),node('p',doc.owner+' · '+doc.workspace+' · '+doc.visibility,'section-note'));
   const text=node('pre',doc.body,'source-body');sourceDialog.append(text);
+  const latest=history.versions[0]?.version;
+  if(doc.version!==latest){
+    const actions=node('div',undefined,'toolbar');
+    actions.append(control('button','Compare with current',async()=>{
+      const current=(await api('source',{id})).source;
+      const comparison=node('div',undefined,'comparison');
+      const previous=node('div');previous.append(node('h3','Viewing version '+doc.version),node('pre',doc.body,'source-body'));
+      const now=node('div');now.append(node('h3','Current version '+current.version),node('pre',current.body,'source-body'));
+      comparison.append(previous,now);text.replaceWith(comparison);
+    }));
+    if(doc.owner===state.actor)actions.append(control('button','Restore this revision',async()=>{
+      if(!confirm('Create a new current version using this content? Current visibility will be preserved.'))return;
+      const result=await api('restore-revision',{id,version:doc.version});
+      $('answer').hidden=true;await refresh();await showSource(id,result.version);toast('Historical content restored as version '+result.version+'.');
+    }));
+    sourceDialog.append(actions);
+  }
   sourceDialog.append(node('h3','Version history'));
   const versions=node('div',undefined,'history-list');
   for(const entry of history.versions){
