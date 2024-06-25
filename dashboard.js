@@ -1,5 +1,10 @@
 /* Additional workspace views subscribe to successful state refreshes. */
 const workspaceUI = { libraryOffset: 0, filters: {}, pageSize: 6 };
+const collectionInput=node('input');collectionInput.id='doc-collection';collectionInput.placeholder='Collection (optional)';collectionInput.maxLength=60;collectionInput.setAttribute('aria-label','Collection');
+const tagsInput=node('input');tagsInput.id='doc-tags';tagsInput.placeholder='Tags, separated by commas (up to 12)';tagsInput.setAttribute('aria-label','Tags');
+$('doc-body').before(collectionInput,tagsInput);
+const originalOpenEditor=openEditor;
+openEditor=function(doc){originalOpenEditor(doc);collectionInput.value=doc?.collection||'';tagsInput.value=doc?JSON.parse(doc.tags||'[]').join(', '):''};
 function control(tag, text, handler, cls='secondary') {
   const element = node(tag, text, cls);
   if (handler) element.addEventListener('click', () => Promise.resolve(handler()).catch(error => toast(error.message)));
