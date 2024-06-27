@@ -23,6 +23,19 @@ libraryTools.append(collectionFilter,tagFilter,bookmarkLabel,control('button','A
 }));
 $('documents').before(libraryTools);
 const libraryPager=node('div',undefined,'toolbar');$('documents').after(libraryPager);
+const trashPanel=node('div',undefined,'utility-panel');trashPanel.hidden=true;libraryPager.after(trashPanel);
+libraryTools.append(control('button','My trash',async()=>{
+  trashPanel.hidden=!trashPanel.hidden;
+  if(!trashPanel.hidden)await renderTrash();
+}));
+async function renderTrash(){
+  const result=await api('trash',{});trashPanel.replaceChildren(node('h3','Your deleted sources'));
+  trashPanel.append(node('p','Deleted sources and their citations are hidden until restored. History is retained locally.','section-note'));
+  for(const doc of result.docs){
+    const row=node('div',undefined,'history-row');row.append(node('span',doc.title+' · v'+doc.version),control('button','Restore',async()=>{await api('restore',{id:doc.id});await refresh();await renderTrash()}));trashPanel.append(row);
+  }
+  if(!result.docs.length)trashPanel.append(node('p','Your trash is empty.','section-note'));
+}
 async function renderLibrary(){
   const [page,bookmarks]=await Promise.all([api('library',{filters:workspaceUI.filters,offset:workspaceUI.libraryOffset,limit:workspaceUI.pageSize}),api('bookmarks',{})]);
   $('documents').replaceChildren();
@@ -42,7 +55,7 @@ async function renderLibrary(){
   const next=control('button','Next →',async()=>{workspaceUI.libraryOffset+=workspaceUI.pageSize;await renderLibrary()});next.disabled=workspaceUI.libraryOffset+workspaceUI.pageSize>=page.total;
   libraryPager.append(previous,next);
 }
-window.addEventListener('papertrail-state',()=>renderLibrary().catch(e=>toast(e.message)));
+window.addEventListener('papertrail-state',()=>{renderLibrary().catch(e=>toast(e.message));if(!trashPanel.hidden)renderTrash().catch(e=>toast(e.message))});
 
 const sourceDialog=node('dialog',undefined,'source-dialog');
 sourceDialog.setAttribute('aria-label','Source details and version history');
