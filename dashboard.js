@@ -1,5 +1,5 @@
 /* Additional workspace views subscribe to successful state refreshes. */
-const workspaceUI = { libraryOffset: 0, filters: {}, pageSize: 6 };
+const workspaceUI = { libraryOffset: 0, filters: {}, pageSize: 6, epoch: 0 };
 const collectionInput=node('input');collectionInput.id='doc-collection';collectionInput.placeholder='Collection (optional)';collectionInput.maxLength=60;collectionInput.setAttribute('aria-label','Collection');
 const tagsInput=node('input');tagsInput.id='doc-tags';tagsInput.placeholder='Tags, separated by commas (up to 12)';tagsInput.setAttribute('aria-label','Tags');
 $('doc-body').before(collectionInput,tagsInput);
@@ -37,7 +37,9 @@ async function renderTrash(){
   if(!result.docs.length)trashPanel.append(node('p','Your trash is empty.','section-note'));
 }
 async function renderLibrary(){
+  const epoch=workspaceUI.epoch;
   const [page,bookmarks]=await Promise.all([api('library',{filters:workspaceUI.filters,offset:workspaceUI.libraryOffset,limit:workspaceUI.pageSize}),api('bookmarks',{})]);
+  if(epoch!==workspaceUI.epoch)return;
   $('documents').replaceChildren();
   for(const d of page.docs){
     const card=node('article',undefined,'doc');
@@ -61,7 +63,9 @@ const sourceDialog=node('dialog',undefined,'source-dialog');
 sourceDialog.setAttribute('aria-label','Source details and version history');
 document.body.append(sourceDialog);
 async function showSource(id, version){
+  const epoch=workspaceUI.epoch;
   const [detail,history]=await Promise.all([api('source',{id,...(version?{version}:{})}),api('history',{id})]);
+  if(epoch!==workspaceUI.epoch)return;
   const doc=detail.source;
   sourceDialog.replaceChildren();
   const top=node('div',undefined,'section-title');
@@ -96,3 +100,8 @@ async function showSource(id, version){
   sourceDialog.append(versions);
   if(!sourceDialog.open)sourceDialog.showModal();
 }
+$('persona').addEventListener('change',()=>{
+  workspaceUI.epoch++;workspaceUI.libraryOffset=0;workspaceUI.filters={};
+  collectionFilter.value='';tagFilter.value='';bookmarkFilter.checked=false;
+  sourceDialog.close();sourceDialog.replaceChildren();trashPanel.hidden=true;
+});
