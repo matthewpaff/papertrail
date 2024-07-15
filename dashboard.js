@@ -128,3 +128,24 @@ async function renderTasks(){
   if(!result.tasks.length)$('task-list').append(node('p','No tasks match this view.','section-note'));
 }
 window.addEventListener('papertrail-state',()=>renderTasks().catch(e=>toast(e.message)));
+
+async function renderProposals(){
+  const epoch=workspaceUI.epoch;
+  const result=await api('pending-proposals',{});
+  if(epoch!==workspaceUI.epoch)return;
+  $('proposal').replaceChildren(node('h3','Awaiting your approval'));
+  $('proposal').hidden=!result.proposals.length;
+  for(const proposal of result.proposals){
+    const row=node('div',undefined,'pending-row');
+    row.append(node('strong',proposal.title),node('p',proposal.workspace+' · '+(proposal.due?'due '+proposal.due+' · ':'')+'expires '+new Date(proposal.expires*1000).toLocaleTimeString(),'section-note'));
+    row.append(node('p','Approval creates one personal task in this local database.','section-note'));
+    row.append(control('button','Approve & create',async()=>{await api('approve',{proposal:proposal.proposal});await refresh();toast('Approved personal task created.')}),control('button','Cancel proposal',async()=>{await api('cancel-proposal',{proposal:proposal.proposal});await refresh()}));
+    $('proposal').append(row);
+  }
+}
+$('task-form').onsubmit=async event=>{
+  event.preventDefault();
+  try{await api('propose',{title:$('task-title').value,due:dueInput.value});$('task-title').value='';dueInput.value='';await refresh()}
+  catch(error){toast(error.message)}
+};
+window.addEventListener('papertrail-state',()=>renderProposals().catch(e=>toast(e.message)));
