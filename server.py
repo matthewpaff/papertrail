@@ -149,6 +149,8 @@ class Store(Workspace):
             return self.export_documents(actor)
         if action == 'import-documents':
             return self.import_documents(actor, data.get('archive'))
+        if action == 'preview-import':
+            return self.preview_import(actor, data.get('archive'))
         if action == 'collections':
             return {'collections': self.collections(actor)}
         if action == 'rename-collection':
@@ -274,7 +276,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get_content_type() != 'application/json':
                 raise ValueError('Content-Type must be application/json.')
             size = int(self.headers.get('Content-Length', '0'))
-            body_limit = 8200000 if self.path == '/api/import-documents' else 100000
+            body_limit = 8200000 if self.path in ('/api/import-documents', '/api/preview-import') else 100000
             if not 0 < size <= body_limit:
                 raise ValueError('Request too large or empty.')
             data = json.loads(self.rfile.read(size))
