@@ -10,6 +10,12 @@ function control(tag, text, handler, cls='secondary') {
   if (handler) element.addEventListener('click', () => Promise.resolve(handler()).catch(error => toast(error.message)));
   return element;
 }
+async function scopedAPI(action,data){
+  const epoch=workspaceUI.epoch;
+  const result=await api(action,data);
+  if(epoch!==workspaceUI.epoch)throw Error('Persona changed; retry in your current workspace.');
+  return result;
+}
 const libraryTools = node('div', undefined, 'toolbar');
 const librarySearch=node('input');librarySearch.placeholder='Search notes; use "exact phrases"';librarySearch.setAttribute('aria-label','Search source library');
 const collectionFilter = node('input'); collectionFilter.placeholder = 'Filter collection'; collectionFilter.setAttribute('aria-label','Filter collection');
@@ -30,7 +36,7 @@ libraryTools.append(control('button','My trash',async()=>{
   if(!trashPanel.hidden)await renderTrash();
 }));
 async function renderTrash(){
-  const result=await api('trash',{});trashPanel.replaceChildren(node('h3','Your deleted sources'));
+  const result=await scopedAPI('trash',{});trashPanel.replaceChildren(node('h3','Your deleted sources'));
   trashPanel.append(node('p','Deleted sources and their citations are hidden until restored. History is retained locally.','section-note'));
   for(const doc of result.docs){
     const row=node('div',undefined,'history-row');row.append(node('span',doc.title+' · v'+doc.version),control('button','Restore',async()=>{await api('restore',{id:doc.id});await refresh();await renderTrash()}));trashPanel.append(row);
@@ -79,7 +85,7 @@ async function showSource(id, version){
   if(doc.version!==latest){
     const actions=node('div',undefined,'toolbar');
     actions.append(control('button','Compare with current',async()=>{
-      const current=(await api('source',{id})).source;
+      const current=(await scopedAPI('source',{id})).source;
       const comparison=node('div',undefined,'comparison');
       const previous=node('div');previous.append(node('h3','Viewing version '+doc.version),node('pre',doc.body,'source-body'));
       const now=node('div');now.append(node('h3','Current version '+current.version),node('pre',current.body,'source-body'));
@@ -105,7 +111,7 @@ async function showSource(id, version){
 }
 $('persona').addEventListener('change',()=>{
   workspaceUI.epoch++;workspaceUI.libraryOffset=0;workspaceUI.filters={};
-  collectionFilter.value='';tagFilter.value='';bookmarkFilter.checked=false;
+  librarySearch.value='';collectionFilter.value='';tagFilter.value='';bookmarkFilter.checked=false;
   sourceDialog.close();sourceDialog.replaceChildren();trashPanel.hidden=true;
 });
 
