@@ -218,3 +218,20 @@ async function renderCollections(){
   for(const collection of result.collections){const option=node('option',collection.name+' ('+collection.count+')');option.value=collection.name;collectionSource.append(option)}
 }
 window.addEventListener('papertrail-state',()=>renderCollections().catch(e=>toast(e.message)));
+
+let activityOffset=0;
+const activityTools=node('div',undefined,'toolbar');
+const activityFilter=node('input');activityFilter.placeholder='Action, e.g. denied';activityFilter.maxLength=40;activityFilter.setAttribute('aria-label','Activity action filter');
+activityTools.append(activityFilter,control('button','Filter activity',async()=>{activityOffset=0;await renderActivity()}),control('button','Export redacted activity',async()=>downloadJSON(await scopedAPI('export-activity',{action:activityFilter.value.trim()}),'papertrail-activity-'+state.actor+'.json')));
+$('audit').before(activityTools);const activityPager=node('div',undefined,'toolbar');$('audit').after(activityPager);
+async function renderActivity(){
+  const result=await scopedAPI('activity',{action:activityFilter.value.trim(),offset:activityOffset,limit:8});
+  $('audit').replaceChildren();
+  for(const event of result.events){const row=node('div',undefined,'audit-row');row.append(node('strong',event.action),node('span',event.detail),node('time',event.created+' UTC'));$('audit').append(row)}
+  if(!result.events.length)$('audit').append(node('p','No activity matches this filter.','section-note'));
+  const previous=control('button','← Previous',async()=>{activityOffset=Math.max(0,activityOffset-8);await renderActivity()});previous.disabled=activityOffset===0;
+  const next=control('button','Next →',async()=>{activityOffset+=8;await renderActivity()});next.disabled=activityOffset+8>=result.total;
+  activityPager.replaceChildren(node('span',result.total+' personal activity records'),previous,next);
+}
+window.addEventListener('papertrail-state',()=>renderActivity().catch(e=>toast(e.message)));
+$('persona').addEventListener('change',()=>{activityOffset=0;activityFilter.value='';taskStatus.value='all';dueBefore.value=''});
