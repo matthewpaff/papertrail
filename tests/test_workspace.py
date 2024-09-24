@@ -177,3 +177,20 @@ class WorkspaceTests(unittest.TestCase):
                 self.store.mutate('alex', action, proposal)
         self.assertEqual(self.store.task_list('alex', {})['total'], 0)
         self.assertEqual(self.store.pending_proposals('alex'), [])
+
+    def test_task_status_and_due_changes_require_owner_even_in_same_workspace(self):
+        proposal = self.store.mutate('alex', 'propose', {'title': 'Ownership boundary'})
+        self.store.mutate('alex', 'approve', proposal)
+        task = self.store.task_list('alex', {})['tasks'][0]
+        for actor in ('sam', 'jules'):
+            with self.assertRaises(ValueError):
+                self.store.task_transition(actor, {'id': task['id'], 'status': 'complete'})
+            with self.assertRaises(ValueError):
+                self.store.task_due(actor, {'id': task['id'], 'due': '2028-02-29'})
+            self.assertEqual(self.store.task_list(actor, {})['total'], 0)
+        self.store.task_transition('alex', {'id': task['id'], 'status': 'complete'})
+        self.assertEqual(self.store.task_list('alex', {'status': 'open'})['total'], 0)
+        with self.assertRaises(ValueError):
+            self.store.task_transition('alex', {'id': task['id'], 'status': 'complete'})
+        self.store.task_transition('alex', {'id': task['id'], 'status': 'open'})
+        self.assertEqual(self.store.task_list('alex', {'status': 'open'})['total'], 1)
