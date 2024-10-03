@@ -194,3 +194,19 @@ class WorkspaceTests(unittest.TestCase):
             self.store.task_transition('alex', {'id': task['id'], 'status': 'complete'})
         self.store.task_transition('alex', {'id': task['id'], 'status': 'open'})
         self.assertEqual(self.store.task_list('alex', {'status': 'open'})['total'], 1)
+
+    def test_collection_merge_is_explicit_and_never_changes_other_owners(self):
+        first = self.save(collection='Research')
+        self.save(collection='Planning')
+        self.store.mutate('sam', 'save', {'title': 'Sam research', 'body': 'Shared research.', 'visibility': 'workspace', 'collection': 'Research'})
+        sams = self.store.db.execute('SELECT max(id) FROM docs').fetchone()[0]
+        with self.assertRaises(ValueError):
+            self.store.rename_collection('alex', {'source': 'Research', 'target': 'Planning'})
+        result = self.store.rename_collection('alex', {'source': 'Research', 'target': 'Planning', 'merge': True})
+        self.assertEqual(result['updated'], 1)
+        self.assertEqual(self.store.source('alex', first)['version'], 2)
+        self.assertEqual(self.store.source('alex', first, 1)['collection'], 'Research')
+        self.assertEqual(self.store.source('sam', sams)['collection'], 'Research')
+        self.assertEqual(self.store.source('sam', sams)['version'], 1)
+        with self.assertRaises(ValueError):
+            self.store.rename_collection('jules', {'source': 'Planning', 'target': 'Field'})
