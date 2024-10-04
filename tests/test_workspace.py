@@ -210,3 +210,25 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(self.store.source('sam', sams)['version'], 1)
         with self.assertRaises(ValueError):
             self.store.rename_collection('jules', {'source': 'Planning', 'target': 'Field'})
+
+    def test_bookmarks_disappear_when_source_access_is_revoked(self):
+        doc = self.save()
+        self.store.bookmark('sam', {'id': doc, 'enabled': True})
+        self.assertEqual(self.store.bookmarks('sam'), [doc])
+        self.assertEqual(self.store.bookmarks('alex'), [])
+        self.store.mutate('alex', 'save', {'id': doc, 'title': 'Now private', 'body': 'Amber evidence.', 'visibility': 'private'})
+        self.assertEqual(self.store.bookmarks('sam'), [])
+        self.assertEqual(self.store.library('sam', {'filters': {'bookmarked': True}})['total'], 0)
+        with self.assertRaises(ValueError):
+            self.store.bookmark('sam', {'id': doc, 'enabled': True})
+
+    def test_audit_filter_export_redacts_legacy_titles_and_scopes_actor(self):
+        self.store.log('alex', 'proposed', 'Sensitive legacy task title')
+        self.store.log('sam', 'proposed', 'Other persona content')
+        result = self.store.export_activity('alex', {'action': 'proposed'})
+        self.assertEqual(len(result['events']), 1)
+        encoded = json.dumps(result)
+        self.assertNotIn('Sensitive legacy', encoded)
+        self.assertNotIn('Other persona', encoded)
+        self.assertNotIn('Sensitive legacy', json.dumps(self.store.state('alex')))
+        self.assertFalse(result['truncated'])
