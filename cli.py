@@ -2,6 +2,7 @@
 import argparse
 import json
 import sqlite3
+import sys
 from pathlib import Path
 from server import Store, PERSONAS, ROOT
 
@@ -17,15 +18,20 @@ def main(argv=None):
     commands.add_parser('export')
     args = parser.parse_args(argv)
     store = Store.__new__(Store)
-    store.db = sqlite3.connect(Path(args.db).resolve().as_uri() + '?mode=ro', uri=True)
-    store.db.row_factory = sqlite3.Row
-    store.fts = False  # read-only CLI uses the deterministic fallback ranker
     try:
+        store.db = sqlite3.connect(Path(args.db).resolve().as_uri() + '?mode=ro', uri=True)
+        store.db.row_factory = sqlite3.Row
+        store.fts = False  # read-only CLI uses the deterministic fallback ranker
         result = store.search(args.actor, {'query': args.text, 'limit': args.limit}) if args.command == 'query' else store.export_documents(args.actor)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print(json.dumps(result, indent=2))
+        return 0
+    except (sqlite3.Error, ValueError, OSError) as error:
+        print('Papertrail: ' + str(error), file=sys.stderr)
+        return 2
     finally:
-        store.db.close()
+        if hasattr(store, 'db'):
+            store.db.close()
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
