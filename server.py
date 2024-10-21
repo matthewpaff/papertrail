@@ -276,7 +276,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get_content_type() != 'application/json':
                 raise ValueError('Content-Type must be application/json.')
             size = int(self.headers.get('Content-Length', '0'))
-            body_limit = 8200000 if self.path in ('/api/import-documents', '/api/preview-import') else 100000
+            # A valid 100-document archive can exceed 8 MB when JSON escapes
+            # non-ASCII text. Keep the larger bound specific to archive routes.
+            body_limit = 26000000 if self.path in ('/api/import-documents', '/api/preview-import') else 100000
             if not 0 < size <= body_limit:
                 raise ValueError('Request too large or empty.')
             data = json.loads(self.rfile.read(size), object_pairs_hook=unique_object)
