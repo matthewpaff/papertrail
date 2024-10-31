@@ -64,6 +64,13 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(self.store.search('alex', {'query': '"amber evidence"', 'limit': 1}), first)
         self.assertEqual(self.store.search('alex', {'query': 'amber', 'offset': 1})['sources'], [])
 
+    def test_quoted_stopword_phrase_can_retrieve_exact_source(self):
+        first = self.store.search('alex', {'query': '"the studio"'})
+        self.assertGreaterEqual(first['total'], 1)
+        self.store.fts = False
+        self.assertEqual(self.store.search('alex', {'query': '"the studio"'}), first)
+        self.assertEqual(self.store.search('alex', {'query': 'the studio'})['total'], first['total'])
+
     def test_private_history_never_inherits_new_workspace_sharing(self):
         self.store.mutate('alex', 'save', {'title': 'Private origin', 'body': 'Secret origin.', 'visibility': 'private'})
         doc = self.store.db.execute('SELECT max(id) FROM docs').fetchone()[0]
