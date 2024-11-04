@@ -198,8 +198,8 @@ class Workspace:
     def save_query(self, actor, data):
         self.persona(actor)
         name, query = data.get('name'), data.get('query')
-        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not isinstance(query, str) or not 1 <= len(query.strip()) <= 2000:
-            raise ValueError('Saved query needs a name up to 80 characters and text up to 2,000.')
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not isinstance(query, str) or len(query.strip()) > 2000:
+            raise ValueError('Saved search needs a name up to 80 characters and at most 2,000 characters of text.')
         filters = data.get('filters', {})
         if not isinstance(filters, dict):
             raise ValueError('Saved query filters must be an object.')
