@@ -1,3 +1,8 @@
+> **Illustrative Git calendar:** 2024-01-08 through 2024-11-22, assigned November 6, 2026.
+> Actual development occurred in November 2026. These dates are simulated,
+> not evidence of historical work or employment. This supersedes older
+> statements below about actual Git dates. See [HISTORY.md](HISTORY.md).
+
 # Papertrail
 
 A personal evidence workspace with a dependency-free Python server and a responsive vanilla web interface. Sample notes demonstrate private and workspace access, retrieval with source versions, and an explicit proposal → approval → execution flow.
