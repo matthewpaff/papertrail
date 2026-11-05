@@ -203,3 +203,18 @@ archivePanel.append(archiveText,control('button','Preview import',async()=>{
   importButton.hidden=!result.create_count;
 }),importPreview,importButton);savedPanel.after(archivePanel);
 $('persona').addEventListener('change',()=>{reviewedArchive=null;archiveText.value='';importPreview.replaceChildren();importButton.hidden=true;archivePanel.open=false});
+
+const collectionPanel=node('details',undefined,'utility-panel');collectionPanel.append(node('summary','Organize your collections'));
+collectionPanel.append(node('p','Renaming updates only sources you own. Merging into an existing collection requires explicit permission. Empty target clears the collection.','section-note'));
+const collectionSource=node('select');collectionSource.setAttribute('aria-label','Owned collection to rename');
+const collectionTarget=node('input');collectionTarget.placeholder='New collection name';collectionTarget.maxLength=60;collectionTarget.setAttribute('aria-label','New collection name');
+const mergeBox=node('input');mergeBox.type='checkbox';const mergeLabel=node('label','Allow merging into an existing collection');mergeLabel.prepend(mergeBox);
+collectionPanel.append(collectionSource,collectionTarget,mergeLabel,control('button','Update my sources',async()=>{
+  if(!confirm('Update this collection on your owned sources? Each change creates a version.'))return;
+  const result=await api('rename-collection',{source:collectionSource.value,target:collectionTarget.value,merge:mergeBox.checked});collectionTarget.value='';mergeBox.checked=false;await refresh();toast(result.updated+' owned sources updated.');
+}));archivePanel.after(collectionPanel);
+async function renderCollections(){
+  const result=await scopedAPI('collections',{});collectionSource.replaceChildren();
+  for(const collection of result.collections){const option=node('option',collection.name+' ('+collection.count+')');option.value=collection.name;collectionSource.append(option)}
+}
+window.addEventListener('papertrail-state',()=>renderCollections().catch(e=>toast(e.message)));
