@@ -110,3 +110,36 @@ class Workspace:
         self.page_bounds(offset, limit)
         rows = self.filtered(actor, data.get('filters'))
         return {'docs': [dict(r) for r in rows[offset:offset + limit]], 'total': len(rows), 'offset': offset, 'limit': limit}
+
+    def search(self, actor, data):
+        query = data.get('query', '')
+        if not isinstance(query, str) or len(query) > 2000:
+            raise ValueError('Question must be text up to 2,000 characters.')
+        offset, limit = data.get('offset', 0), data.get('limit', 12)
+        self.page_bounds(offset, limit)
+        allowed = self.filtered(actor, data.get('filters'))
+        terms = list(dict.fromkeys(re.findall(r'[a-zA-Z0-9]{2,}', query.lower())))[:24]
+        stop = {'the', 'what', 'when', 'where', 'who', 'does', 'about', 'are', 'and', 'for', 'with', 'can', 'how', 'was', 'this', 'that', 'is', 'my'}
+        terms = [t for t in terms if t not in stop]
+        phrases = [p.lower().strip() for p in re.findall(r'"([^"\n]+)"', query) if p.strip()]
+        candidates = {d['id'] for d in allowed}
+        if self.fts and terms:
+            self.db.execute('CREATE VIRTUAL TABLE IF NOT EXISTS temp.allowed_search USING fts5(title,body)')
+            self.db.execute('DELETE FROM temp.allowed_search')
+            self.db.executemany('INSERT INTO temp.allowed_search(rowid,title,body) VALUES(?,?,?)', [(d['id'], d['title'], d['body']) for d in allowed])
+            match = ' OR '.join('"' + t + '"' for t in terms)
+            candidates = {r[0] for r in self.db.execute('SELECT rowid FROM temp.allowed_search WHERE allowed_search MATCH ?', (match,))}
+        ranked = []
+        for doc in allowed:
+            full = (doc['title'] + ' ' + doc['body']).lower()
+            if not terms or doc['id'] not in candidates or any(p not in full for p in phrases):
+                continue
+            title_score = 3 * len(set(re.findall(r'\w+', doc['title'].lower())).intersection(terms))
+            sentences = re.split(r'(?<=[.!?])\s+|\n+', doc['body'])
+            scored = [(len(set(re.findall(r'\w+', s.lower())).intersection(terms)), -i, s) for i, s in enumerate(sentences)]
+            best = max(scored)
+            score = title_score + best[0] + 5 * len(phrases)
+            if score:
+                ranked.append({'id': doc['id'], 'version': doc['version'], 'title': doc['title'], 'snippet': best[2], 'score': score, 'collection': doc['collection'], 'tags': json.loads(doc['tags'])})
+        ranked.sort(key=lambda d: (-d['score'], d['id']))
+        return {'sources': ranked[offset:offset + limit], 'total': len(ranked), 'offset': offset, 'limit': limit}
