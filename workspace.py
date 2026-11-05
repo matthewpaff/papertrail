@@ -391,7 +391,7 @@ class Workspace:
         ranked = []
         for doc in allowed:
             full = (doc['title'] + ' ' + doc['body']).lower()
-            if not terms or doc['id'] not in candidates or any(p not in full for p in phrases):
+            if (not terms and not phrases) or doc['id'] not in candidates or any(p not in full for p in phrases):
                 continue
             title_score = 3 * len(set(re.findall(r'\w+', doc['title'].lower())).intersection(terms))
             sentences = re.split(r'(?<=[.!?])\s+|\n+', doc['body'])
