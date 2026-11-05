@@ -201,6 +201,8 @@ class Workspace:
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not isinstance(query, str) or not 1 <= len(query.strip()) <= 2000:
             raise ValueError('Saved query needs a name up to 80 characters and text up to 2,000.')
         filters = data.get('filters', {})
+        if not isinstance(filters, dict):
+            raise ValueError('Saved query filters must be an object.')
         self.filtered(actor, filters)
         count = self.db.execute('SELECT count(*) FROM saved_queries WHERE actor=?', (actor,)).fetchone()[0]
         existing = self.db.execute('SELECT id FROM saved_queries WHERE actor=? AND name=?', (actor, name.strip())).fetchone()

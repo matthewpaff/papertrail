@@ -126,3 +126,23 @@ class WorkspaceTests(unittest.TestCase):
         first = self.store.search('sam', {'query': 'orchid', 'limit': 1})
         second = self.store.search('sam', {'query': 'orchid', 'limit': 1, 'offset': 1})
         self.assertNotEqual(first['sources'][0]['id'], second['sources'][0]['id'])
+
+    def test_saved_queries_are_personal_bounded_and_persistent(self):
+        self.store.save_query('alex', {'name': 'Launch', 'query': 'accessibility', 'filters': {'bookmarked': True}})
+        row = self.store.saved_queries('alex')[0]
+        self.assertEqual(self.store.saved_queries('sam'), [])
+        with self.assertRaises(ValueError):
+            self.store.delete_query('sam', row['id'])
+        self.store.save_query('alex', {'name': 'Launch', 'query': 'review'})
+        self.assertEqual(self.store.saved_queries('alex')[0]['id'], row['id'])
+        self.assertEqual(self.store.saved_queries('alex')[0]['query'], 'review')
+        for i in range(19):
+            self.store.save_query('alex', {'name': 'Saved ' + str(i), 'query': 'launch'})
+        with self.assertRaises(ValueError):
+            self.store.save_query('alex', {'name': 'Too many', 'query': 'launch'})
+        with self.assertRaises(ValueError):
+            self.store.save_query('sam', {'name': 'Invalid', 'query': 'launch', 'filters': None})
+        path = self.store.db.execute('PRAGMA database_list').fetchone()[2]
+        self.store.db.close()
+        self.store = Store(path)
+        self.assertEqual(len(self.store.saved_queries('alex')), 20)
