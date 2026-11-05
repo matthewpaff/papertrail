@@ -16,6 +16,7 @@ FIELDS = {
     'restore-revision': {'id', 'version'},
     'task-due': {'id', 'due'},
     'tasks': {'status', 'due_before', 'offset', 'limit'},
+    'save-query': {'name', 'query', 'filters'}, 'saved-queries': set(), 'delete-query': {'id'},
 }
 
 

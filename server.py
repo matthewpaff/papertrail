@@ -159,6 +159,12 @@ class Store(Workspace):
             return self.task_due(actor, data)
         if action == 'tasks':
             return self.task_list(actor, data)
+        if action == 'save-query':
+            return self.save_query(actor, data)
+        if action == 'saved-queries':
+            return {'queries': self.saved_queries(actor)}
+        if action == 'delete-query':
+            return self.delete_query(actor, data.get('id'))
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
