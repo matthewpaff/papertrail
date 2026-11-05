@@ -132,6 +132,8 @@ class Store(Workspace):
             return self.task_transition(actor, data)
         if action == 'pending-proposals':
             return {'proposals': self.pending_proposals(actor)}
+        if action == 'activity':
+            return self.activity(actor, data)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
@@ -180,14 +182,14 @@ class Store(Workspace):
             token = secrets.token_urlsafe(24)
             expires = int(time.time()) + 600
             self.db.execute('INSERT INTO proposals(id,actor,workspace,title,status,expires) VALUES(?,?,?,?,?,?)', (token, actor, p['workspace'], title, 'pending', expires))
-            self.log(actor, 'proposed', title)
+            self.log(actor, 'proposed', 'Personal task proposed')
             return {'proposal': token, 'title': title, 'workspace': p['workspace'], 'expires': expires}
         if action == 'approve':
             row = self.proposal(actor, data.get('proposal'))
             with self.db:
                 self.db.execute("UPDATE proposals SET status='executed' WHERE id=?", (row['id'],))
                 self.db.execute('INSERT INTO tasks(proposal,title,owner,workspace) VALUES(?,?,?,?)', (row['id'], row['title'], actor, p['workspace']))
-            self.log(actor, 'executed', row['title'])
+            self.log(actor, 'executed', 'Personal task created')
             return {}
         raise ValueError('Unknown action.')
 
