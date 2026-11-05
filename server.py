@@ -274,7 +274,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get_content_type() != 'application/json':
                 raise ValueError('Content-Type must be application/json.')
             size = int(self.headers.get('Content-Length', '0'))
-            if not 0 < size <= 40000:
+            body_limit = 8200000 if self.path == '/api/import-documents' else 100000
+            if not 0 < size <= body_limit:
                 raise ValueError('Request too large or empty.')
             data = json.loads(self.rfile.read(size))
             if not isinstance(data, dict):
