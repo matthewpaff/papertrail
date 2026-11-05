@@ -146,3 +146,16 @@ class WorkspaceTests(unittest.TestCase):
         self.store.db.close()
         self.store = Store(path)
         self.assertEqual(len(self.store.saved_queries('alex')), 20)
+
+    def test_due_dates_validate_leap_days_and_sort_without_timezones(self):
+        for value in ('2025-02-29', '2026-13-01', '2026-1-01', '2026-11-05T12:00:00Z', None, 20261105):
+            with self.assertRaises(ValueError):
+                self.store.mutate('alex', 'propose', {'title': 'Invalid', 'due': value})
+        for due in ('', '2028-02-29', '2027-01-01'):
+            proposal = self.store.mutate('alex', 'propose', {'title': 'Dated task', 'due': due})
+            self.store.mutate('alex', 'approve', proposal)
+        tasks = self.store.task_list('alex', {})['tasks']
+        self.assertEqual([t['due'] for t in tasks], ['2027-01-01', '2028-02-29', ''])
+        self.assertEqual(self.store.task_list('alex', {'due_before': '2027-12-31'})['total'], 1)
+        self.store.task_due('alex', {'id': tasks[0]['id'], 'due': ''})
+        self.assertEqual(self.store.task_list('alex', {'due_before': '2027-12-31'})['total'], 0)
