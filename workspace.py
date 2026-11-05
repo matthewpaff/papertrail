@@ -221,6 +221,26 @@ class Workspace:
             clean.append((row['title'].strip(), row['body'].strip(), row['visibility'], collection, json.dumps(tags)))
         return clean
 
+    def import_documents(self, actor, archive):
+        workspace = self.persona(actor)['workspace']
+        clean = self.validate_archive(archive)
+        existing = {(r['title'], r['body'], r['visibility'], r['collection'], r['tags']) for r in self.visible(actor) if r['owner'] == actor}
+        created, skipped = [], 0
+        with self.db:
+            for row in clean:
+                if row in existing:
+                    skipped += 1
+                    continue
+                title, body, visibility, collection, tags = row
+                cursor = self.db.execute('INSERT INTO docs(title,body,visibility,collection,tags,owner,workspace) VALUES(?,?,?,?,?,?,?)', (title, body, visibility, collection, tags, actor, workspace))
+                doc_id = cursor.lastrowid
+                self.db.execute('''INSERT INTO versions(doc,version,title,body,owner,workspace,visibility,collection,tags) SELECT id,version,title,body,owner,workspace,visibility,collection,tags FROM docs WHERE id=?''', (doc_id,))
+                created.append(doc_id)
+                existing.add(row)
+        self.reindex()
+        self.log(actor, 'imported', str(len(created)) + ' sources imported; ' + str(skipped) + ' duplicates skipped')
+        return {'created': created, 'skipped': skipped}
+
     @staticmethod
     def page_bounds(offset, limit):
         if type(offset) is not int or not 0 <= offset <= 100000 or type(limit) is not int or not 1 <= limit <= 50:
