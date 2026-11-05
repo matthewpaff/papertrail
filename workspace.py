@@ -15,6 +15,8 @@ class Workspace:
         proposal_columns = {r[1] for r in self.db.execute('PRAGMA table_info(proposals)')}
         if 'expires' not in proposal_columns:
             self.db.execute('ALTER TABLE proposals ADD COLUMN expires INTEGER NOT NULL DEFAULT 0')
+        if 'status' not in {r[1] for r in self.db.execute('PRAGMA table_info(tasks)')}:
+            self.db.execute("ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'open'")
         self.db.execute('''INSERT OR IGNORE INTO versions(doc,version,title,body,owner,workspace,visibility,collection,tags) SELECT id,version,title,body,owner,workspace,visibility,collection,tags FROM docs''')
         self.db.commit()
 
@@ -140,6 +142,24 @@ class Workspace:
         self.db.execute("UPDATE proposals SET status='cancelled' WHERE id=?", (row['id'],))
         self.log(actor, 'cancelled', 'Proposal cancelled')
         return {}
+
+    def task_transition(self, actor, data):
+        task_id = self.positive(data.get('id'))
+        status = data.get('status')
+        if status not in ('open', 'complete'):
+            raise ValueError('Task status must be open or complete.')
+        row = self.db.execute('SELECT * FROM tasks WHERE id=? AND owner=? AND workspace=?', (task_id, actor, self.persona(actor)['workspace'])).fetchone()
+        if not row:
+            raise ValueError('Task unavailable.')
+        if row['status'] == status:
+            raise ValueError('Task already has this status.')
+        self.db.execute('UPDATE tasks SET status=? WHERE id=?', (status, task_id))
+        self.log(actor, 'task-' + status, 'Task ' + str(task_id))
+        return {}
+
+    def pending_proposals(self, actor):
+        now = int(time.time())
+        return [dict(r) for r in self.db.execute("SELECT id AS proposal,title,workspace,expires FROM proposals WHERE actor=? AND workspace=? AND status='pending' AND expires>? ORDER BY expires DESC", (actor, self.persona(actor)['workspace'], now))]
 
     @staticmethod
     def page_bounds(offset, limit):
