@@ -155,6 +155,12 @@ class WorkspaceTests(unittest.TestCase):
         self.store = Store(path)
         self.assertEqual(len(self.store.saved_queries('alex')), 20)
 
+    def test_filter_only_search_can_be_saved(self):
+        self.store.save_query('alex', {'name': 'Bookmarked', 'query': '  ', 'filters': {'bookmarked': True}})
+        saved = self.store.saved_queries('alex')[0]
+        self.assertEqual(saved['query'], '')
+        self.assertEqual(json.loads(saved['filters']), {'bookmarked': True})
+
     def test_due_dates_validate_leap_days_and_sort_without_timezones(self):
         for value in ('2025-02-29', '2026-13-01', '2026-1-01', '2026-11-05T12:00:00Z', None, 20261105):
             with self.assertRaises(ValueError):
