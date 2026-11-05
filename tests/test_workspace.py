@@ -62,3 +62,23 @@ class WorkspaceTests(unittest.TestCase):
         self.store.fts = False
         self.assertEqual(self.store.search('alex', {'query': '"amber evidence"', 'limit': 1}), first)
         self.assertEqual(self.store.search('alex', {'query': 'amber', 'offset': 1})['sources'], [])
+
+    def test_private_history_never_inherits_new_workspace_sharing(self):
+        self.store.mutate('alex', 'save', {'title': 'Private origin', 'body': 'Secret origin.', 'visibility': 'private'})
+        doc = self.store.db.execute('SELECT max(id) FROM docs').fetchone()[0]
+        self.store.mutate('alex', 'save', {'id': doc, 'title': 'Shared now', 'body': 'Public replacement.', 'visibility': 'workspace'})
+        self.assertEqual([v['version'] for v in self.store.history('sam', doc)], [2])
+        with self.assertRaises(ValueError):
+            self.store.source('sam', doc, 1)
+        with self.assertRaises(ValueError):
+            self.store.restore_revision('sam', {'id': doc, 'version': 1})
+
+    def test_revision_restore_creates_version_and_preserves_current_privacy(self):
+        doc = self.save()
+        self.store.mutate('alex', 'save', {'id': doc, 'title': 'Restricted now', 'body': 'Changed body.', 'visibility': 'private'})
+        restored = self.store.restore_revision('alex', {'id': doc, 'version': 1})
+        self.assertEqual(restored['version'], 3)
+        self.assertEqual(self.store.source('alex', doc)['visibility'], 'private')
+        self.assertEqual(self.store.source('alex', doc, 2)['body'], 'Changed body.')
+        self.assertTrue(self.store.ask('sam', 'amber')['abstained'])
+        self.assertEqual(self.store.ask('alex', 'amber')['sources'][0]['version'], 3)
