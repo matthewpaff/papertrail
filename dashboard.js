@@ -152,3 +152,26 @@ $('task-form').onsubmit=async event=>{
   catch(error){toast(error.message)}
 };
 window.addEventListener('papertrail-state',()=>renderProposals().catch(e=>toast(e.message)));
+
+const savedPanel=node('div',undefined,'utility-panel');
+savedPanel.append(node('h3','Keep a useful search'),node('p','Save the library search and its current filters. Saved searches are personal to this demo persona.','section-note'));
+const savedName=node('input');savedName.placeholder='Name this search';savedName.maxLength=80;savedName.setAttribute('aria-label','Saved search name');
+const savedList=node('div',undefined,'saved-list');
+savedPanel.append(savedName,control('button','Save current search',async()=>{
+  await api('save-query',{name:savedName.value,query:librarySearch.value,filters:workspaceUI.filters});savedName.value='';await renderSavedQueries();
+}),savedList);trashPanel.after(savedPanel);
+async function renderSavedQueries(){
+  const epoch=workspaceUI.epoch;
+  const result=await api('saved-queries',{});if(epoch!==workspaceUI.epoch)return;
+  savedList.replaceChildren();
+  for(const query of result.queries){
+    const row=node('div',undefined,'history-row');
+    row.append(control('button',query.name,async()=>{
+      workspaceUI.filters=JSON.parse(query.filters);librarySearch.value=query.query;
+      collectionFilter.value=workspaceUI.filters.collection||'';tagFilter.value=workspaceUI.filters.tag||'';bookmarkFilter.checked=!!workspaceUI.filters.bookmarked;
+      workspaceUI.libraryOffset=0;await renderLibrary();$('library').scrollIntoView({behavior:'smooth'});
+    }),node('span',query.query),control('button','Remove',async()=>{await api('delete-query',{id:query.id});await renderSavedQueries()}));savedList.append(row);
+  }
+  if(!result.queries.length)savedList.append(node('p','No saved searches yet.','section-note'));
+}
+window.addEventListener('papertrail-state',()=>renderSavedQueries().catch(e=>toast(e.message)));
