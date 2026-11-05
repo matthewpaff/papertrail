@@ -49,3 +49,15 @@ class Workspace:
     def history(self, actor, doc_id):
         self.source(actor, doc_id)
         return [dict(r) for r in self.db.execute("SELECT version,title,created FROM versions WHERE doc=? AND (visibility='workspace' OR owner=?) ORDER BY version DESC", (doc_id, actor))]
+
+    def trash(self, actor):
+        return [dict(r) for r in self.db.execute('SELECT id,title,version FROM docs WHERE deleted=1 AND owner=? AND workspace=? ORDER BY id DESC', (actor, self.persona(actor)['workspace']))]
+
+    def restore(self, actor, doc_id):
+        row = self.owned(actor, doc_id)
+        if not row['deleted']:
+            raise ValueError('Source is not in trash.')
+        self.db.execute('UPDATE docs SET deleted=0 WHERE id=?', (doc_id,))
+        self.reindex()
+        self.log(actor, 'restored', 'Document ' + str(doc_id))
+        return {}
