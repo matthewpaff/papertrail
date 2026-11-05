@@ -2,6 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -159,3 +160,20 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(self.store.task_list('alex', {'due_before': '2027-12-31'})['total'], 1)
         self.store.task_due('alex', {'id': tasks[0]['id'], 'due': ''})
         self.assertEqual(self.store.task_list('alex', {'due_before': '2027-12-31'})['total'], 0)
+
+    def test_expiry_and_cancellation_are_terminal_approval_states(self):
+        with patch('workspace.time.time', return_value=1000):
+            proposal = self.store.mutate('alex', 'propose', {'title': 'Expires soon'})
+        with patch('workspace.time.time', return_value=1600):
+            with self.assertRaises(ValueError):
+                self.store.mutate('alex', 'approve', proposal)
+        self.assertEqual(self.store.db.execute('SELECT status FROM proposals WHERE id=?', (proposal['proposal'],)).fetchone()[0], 'expired')
+        proposal = self.store.mutate('alex', 'propose', {'title': 'Cancel me'})
+        with self.assertRaises(ValueError):
+            self.store.cancel_proposal('sam', proposal['proposal'])
+        self.store.cancel_proposal('alex', proposal['proposal'])
+        for action in ('approve', 'cancel-proposal'):
+            with self.assertRaises(ValueError):
+                self.store.mutate('alex', action, proposal)
+        self.assertEqual(self.store.task_list('alex', {})['total'], 0)
+        self.assertEqual(self.store.pending_proposals('alex'), [])
