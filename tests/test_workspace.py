@@ -111,3 +111,18 @@ class WorkspaceTests(unittest.TestCase):
         result = self.store.import_documents('alex', archive)
         self.assertEqual(len(result['created']), 1)
         self.assertEqual(result['skipped'], 1)
+
+    def test_ranker_parity_title_boost_ties_and_query_punctuation(self):
+        for title, body in [('Orchid owner', 'A quiet planning note.'), ('Body match', 'Orchid owner is Alex.'), ('Another body', 'Orchid owner is Sam.')]:
+            self.store.mutate('alex', 'save', {'title': title, 'body': body, 'visibility': 'workspace'})
+        queries = ['orchid owner', '"orchid owner"', 'orchid OR owner:*', 'unknownword', 'the and is']
+        expected = [self.store.search('sam', {'query': query, 'limit': 50}) for query in queries]
+        self.assertEqual(expected[0]['sources'][0]['title'], 'Orchid owner')
+        ids = [r['id'] for r in expected[0]['sources'][1:]]
+        self.assertEqual(ids, sorted(ids))
+        self.store.fts = False
+        for query, result in zip(queries, expected):
+            self.assertEqual(self.store.search('sam', {'query': query, 'limit': 50}), result)
+        first = self.store.search('sam', {'query': 'orchid', 'limit': 1})
+        second = self.store.search('sam', {'query': 'orchid', 'limit': 1, 'offset': 1})
+        self.assertNotEqual(first['sources'][0]['id'], second['sources'][0]['id'])
