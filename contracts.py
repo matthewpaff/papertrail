@@ -13,6 +13,7 @@ FIELDS = {
     'export-activity': {'action'}, 'export-documents': set(),
     'import-documents': {'archive'},
     'collections': set(), 'rename-collection': {'source', 'target', 'merge'},
+    'restore-revision': {'id', 'version'},
 }
 
 
