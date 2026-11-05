@@ -26,3 +26,12 @@ def validate(action, data):
         raise ValueError('Unknown API action.')
     if not isinstance(data, dict) or set(data) - FIELDS[action]:
         raise ValueError('Unknown request fields.')
+
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('Duplicate JSON field: ' + key[:40])
+        result[key] = value
+    return result

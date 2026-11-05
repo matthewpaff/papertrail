@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from workspace import Workspace
-from contracts import validate
+from contracts import validate, unique_object
 
 ROOT = Path(__file__).parent
 PERSONAS = {'alex': {'name': 'Alex Morgan', 'workspace': 'studio'}, 'sam': {'name': 'Sam Rivera', 'workspace': 'studio'}, 'jules': {'name': 'Jules Chen', 'workspace': 'field'}}
@@ -279,7 +279,7 @@ class Handler(BaseHTTPRequestHandler):
             body_limit = 8200000 if self.path in ('/api/import-documents', '/api/preview-import') else 100000
             if not 0 < size <= body_limit:
                 raise ValueError('Request too large or empty.')
-            data = json.loads(self.rfile.read(size))
+            data = json.loads(self.rfile.read(size), object_pairs_hook=unique_object)
             if not isinstance(data, dict):
                 raise ValueError('Expected a JSON object.')
             action = self.path.removeprefix('/api/')
@@ -297,6 +297,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Model option must be boolean.')
             result = self.server.store.ask(self.actor(), data.get('query', ''), data.get('model', False)) if action == 'ask' else self.server.store.mutate(self.actor(), action, data)
             self.respond(200, result)
+        except RecursionError:
+            self.respond(400, {'error': 'JSON nesting exceeds the supported limit.'})
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self.respond(400, {'error': str(exc)})
 
