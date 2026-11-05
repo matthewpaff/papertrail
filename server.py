@@ -136,6 +136,8 @@ class Store(Workspace):
             return self.activity(actor, data)
         if action == 'export-activity':
             return self.export_activity(actor, data)
+        if action == 'export-documents':
+            return self.export_documents(actor)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
