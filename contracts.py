@@ -7,13 +7,14 @@ FIELDS = {
     'library': {'offset', 'limit', 'filters'},
     'search': {'query', 'offset', 'limit', 'filters'},
     'bookmark': {'id', 'enabled'}, 'bookmarks': set(),
-    'propose': {'title', 'workspace'}, 'approve': {'proposal'},
+    'propose': {'title', 'workspace', 'due'}, 'approve': {'proposal'},
     'cancel-proposal': {'proposal'}, 'pending-proposals': set(),
     'task-status': {'id', 'status'}, 'activity': {'action', 'offset', 'limit'},
     'export-activity': {'action'}, 'export-documents': set(),
     'import-documents': {'archive'},
     'collections': set(), 'rename-collection': {'source', 'target', 'merge'},
     'restore-revision': {'id', 'version'},
+    'task-due': {'id', 'due'},
 }
 
 

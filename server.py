@@ -155,6 +155,8 @@ class Store(Workspace):
             return self.rename_collection(actor, data)
         if action == 'restore-revision':
             return self.restore_revision(actor, data)
+        if action == 'task-due':
+            return self.task_due(actor, data)
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
@@ -201,15 +203,16 @@ class Store(Workspace):
                 self.log(actor, 'denied', 'Cross-workspace proposal denied')
                 raise ValueError('Cross-workspace actions are denied.')
             token = secrets.token_urlsafe(24)
+            due = self.due_date(data.get('due', ''))
             expires = int(time.time()) + 600
-            self.db.execute('INSERT INTO proposals(id,actor,workspace,title,status,expires) VALUES(?,?,?,?,?,?)', (token, actor, p['workspace'], title, 'pending', expires))
+            self.db.execute('INSERT INTO proposals(id,actor,workspace,title,status,expires,due) VALUES(?,?,?,?,?,?,?)', (token, actor, p['workspace'], title, 'pending', expires, due))
             self.log(actor, 'proposed', 'Personal task proposed')
-            return {'proposal': token, 'title': title, 'workspace': p['workspace'], 'expires': expires}
+            return {'proposal': token, 'title': title, 'workspace': p['workspace'], 'expires': expires, 'due': due}
         if action == 'approve':
             row = self.proposal(actor, data.get('proposal'))
             with self.db:
                 self.db.execute("UPDATE proposals SET status='executed' WHERE id=?", (row['id'],))
-                self.db.execute('INSERT INTO tasks(proposal,title,owner,workspace) VALUES(?,?,?,?)', (row['id'], row['title'], actor, p['workspace']))
+                self.db.execute('INSERT INTO tasks(proposal,title,owner,workspace,due) VALUES(?,?,?,?,?)', (row['id'], row['title'], actor, p['workspace'], row['due']))
             self.log(actor, 'executed', 'Personal task created')
             return {}
         raise ValueError('Unknown action.')
