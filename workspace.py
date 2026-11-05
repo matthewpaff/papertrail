@@ -306,6 +306,17 @@ class Workspace:
         self.log(actor, 'imported', str(len(created)) + ' sources imported; ' + str(skipped) + ' duplicates skipped')
         return {'created': created, 'skipped': skipped}
 
+    def preview_import(self, actor, archive):
+        self.persona(actor)
+        rows = self.validate_archive(archive)
+        existing = {(r['title'], r['body'], r['visibility'], r['collection'], r['tags']) for r in self.visible(actor) if r['owner'] == actor}
+        entries = []
+        for row in rows:
+            duplicate = row in existing
+            entries.append({'title': row[0], 'visibility': row[2], 'duplicate': duplicate})
+            existing.add(row)
+        return {'entries': entries, 'create_count': sum(not e['duplicate'] for e in entries), 'skip_count': sum(e['duplicate'] for e in entries)}
+
     def collections(self, actor):
         counts = {}
         for row in self.visible(actor):
