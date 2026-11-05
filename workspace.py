@@ -11,6 +11,7 @@ class Workspace:
             if name not in columns:
                 self.db.execute('ALTER TABLE docs ADD COLUMN ' + name + ' ' + definition)
         self.db.execute('''CREATE TABLE IF NOT EXISTS versions(doc INTEGER,version INTEGER,title TEXT,body TEXT,owner TEXT,workspace TEXT,visibility TEXT,collection TEXT,tags TEXT,created TEXT DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(doc,version))''')
+        self.db.execute('CREATE TABLE IF NOT EXISTS bookmarks(actor TEXT, doc INTEGER, PRIMARY KEY(actor,doc))')
         self.db.execute('''INSERT OR IGNORE INTO versions(doc,version,title,body,owner,workspace,visibility,collection,tags) SELECT id,version,title,body,owner,workspace,visibility,collection,tags FROM docs''')
         self.db.commit()
 
@@ -98,7 +99,25 @@ class Workspace:
                 rows = [r for r in rows if r[key] == filters[key]]
         if filters.get('tag'):
             rows = [r for r in rows if filters['tag'].lower() in json.loads(r['tags'])]
+        if filters.get('bookmarked'):
+            bookmarks = {r[0] for r in self.db.execute('SELECT doc FROM bookmarks WHERE actor=?', (actor,))}
+            rows = [r for r in rows if r['id'] in bookmarks]
         return rows
+
+    def bookmark(self, actor, data):
+        doc = self.source(actor, data.get('id'))
+        enabled = data.get('enabled')
+        if type(enabled) is not bool:
+            raise ValueError('Bookmark enabled must be boolean.')
+        if enabled:
+            self.db.execute('INSERT OR IGNORE INTO bookmarks VALUES(?,?)', (actor, doc['id']))
+        else:
+            self.db.execute('DELETE FROM bookmarks WHERE actor=? AND doc=?', (actor, doc['id']))
+        self.db.commit()
+        return {}
+
+    def bookmarks(self, actor):
+        return [d['id'] for d in self.filtered(actor, {'bookmarked': True})]
 
     @staticmethod
     def page_bounds(offset, limit):
