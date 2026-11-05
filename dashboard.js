@@ -105,3 +105,26 @@ $('persona').addEventListener('change',()=>{
   collectionFilter.value='';tagFilter.value='';bookmarkFilter.checked=false;
   sourceDialog.close();sourceDialog.replaceChildren();trashPanel.hidden=true;
 });
+
+const dueInput=node('input');dueInput.type='date';dueInput.id='task-due';dueInput.setAttribute('aria-label','Proposed task due date');
+$('task-form').append(node('label','Due date (optional)'),dueInput);
+const taskTools=node('div',undefined,'toolbar');
+const taskStatus=node('select');taskStatus.setAttribute('aria-label','Task status filter');
+for(const value of ['all','open','complete']){const option=node('option',value[0].toUpperCase()+value.slice(1));option.value=value;taskStatus.append(option)}
+const dueBefore=node('input');dueBefore.type='date';dueBefore.setAttribute('aria-label','Tasks due on or before');
+taskTools.append(taskStatus,node('span','Due by'),dueBefore,control('button','Filter',()=>renderTasks()));$('task-list').before(taskTools);
+async function renderTasks(){
+  const epoch=workspaceUI.epoch;
+  const result=await api('tasks',{status:taskStatus.value,due_before:dueBefore.value});
+  if(epoch!==workspaceUI.epoch)return;
+  $('task-list').replaceChildren();
+  for(const task of result.tasks){
+    const row=node('div',undefined,'task-item');
+    row.append(node('strong',(task.status==='complete'?'✓ ':'○ ')+task.title),node('p',task.due?'Due '+task.due:'No due date','section-note'));
+    row.append(control('button',task.status==='open'?'Complete':'Reopen',async()=>{await api('task-status',{id:task.id,status:task.status==='open'?'complete':'open'});await refresh()}));
+    const date=node('input');date.type='date';date.value=task.due;date.setAttribute('aria-label','Due date for '+task.title);
+    row.append(date,control('button','Save date',async()=>{await api('task-due',{id:task.id,due:date.value});await refresh()}));$('task-list').append(row);
+  }
+  if(!result.tasks.length)$('task-list').append(node('p','No tasks match this view.','section-note'));
+}
+window.addEventListener('papertrail-state',()=>renderTasks().catch(e=>toast(e.message)));
