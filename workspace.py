@@ -183,6 +183,17 @@ class Workspace:
         self.log(actor, 'task-due', 'Task ' + str(task_id) + ' due date updated')
         return {}
 
+    def task_list(self, actor, data):
+        status = data.get('status', 'all')
+        if status not in ('all', 'open', 'complete'):
+            raise ValueError('Unknown task status filter.')
+        before = self.due_date(data.get('due_before', ''))
+        offset, limit = data.get('offset', 0), data.get('limit', 25)
+        self.page_bounds(offset, limit)
+        rows = self.db.execute('SELECT * FROM tasks WHERE owner=? AND workspace=? ORDER BY (due=""),due,id', (actor, self.persona(actor)['workspace'])).fetchall()
+        rows = [r for r in rows if (status == 'all' or r['status'] == status) and (not before or r['due'] and r['due'] <= before)]
+        return {'tasks': [dict(r) for r in rows[offset:offset + limit]], 'total': len(rows), 'offset': offset, 'limit': limit}
+
     def pending_proposals(self, actor):
         now = int(time.time())
         return [dict(r) for r in self.db.execute("SELECT id AS proposal,title,workspace,expires FROM proposals WHERE actor=? AND workspace=? AND status='pending' AND expires>? ORDER BY expires DESC", (actor, self.persona(actor)['workspace'], now))]
