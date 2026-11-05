@@ -175,3 +175,25 @@ async function renderSavedQueries(){
   if(!result.queries.length)savedList.append(node('p','No saved searches yet.','section-note'));
 }
 window.addEventListener('papertrail-state',()=>renderSavedQueries().catch(e=>toast(e.message)));
+
+function downloadJSON(value,name){
+  const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
+  const link=node('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+const archivePanel=node('details',undefined,'utility-panel');archivePanel.append(node('summary','Import & export your documents'));
+archivePanel.append(node('p','Export contains your active owned sources only. Paste a Papertrail JSON archive to preview it. Imported sources belong to your current persona and workspace.','section-note'));
+archivePanel.append(control('button','Download my sources',async()=>downloadJSON(await api('export-documents',{}),'papertrail-'+state.actor+'.json')));
+const archiveText=node('textarea');archiveText.placeholder='Paste a papertrail.documents.v1 JSON archive';archiveText.maxLength=8200000;archiveText.setAttribute('aria-label','JSON document archive');
+const importPreview=node('div');let reviewedArchive=null;
+const importButton=control('button','Import reviewed sources',async()=>{
+  if(!reviewedArchive)return;
+  const result=await api('import-documents',{archive:reviewedArchive});reviewedArchive=null;importButton.hidden=true;archiveText.value='';importPreview.replaceChildren(node('p',result.created.length+' created · '+result.skipped+' duplicates skipped'));await refresh();
+});importButton.hidden=true;
+archiveText.addEventListener('input',()=>{reviewedArchive=null;importButton.hidden=true;importPreview.replaceChildren()});
+archivePanel.append(archiveText,control('button','Preview import',async()=>{
+  const archive=JSON.parse(archiveText.value);const result=await api('preview-import',{archive});reviewedArchive=archive;
+  importPreview.replaceChildren(node('h3',result.create_count+' sources to create · '+result.skip_count+' duplicates to skip'));
+  for(const entry of result.entries)importPreview.append(node('p',(entry.duplicate?'Skip: ':'Create: ')+entry.title+' · '+entry.visibility,'section-note'));
+  importButton.hidden=!result.create_count;
+}),importPreview,importButton);savedPanel.after(archivePanel);
+$('persona').addEventListener('change',()=>{reviewedArchive=null;archiveText.value='';importPreview.replaceChildren();importButton.hidden=true;archivePanel.open=false});
