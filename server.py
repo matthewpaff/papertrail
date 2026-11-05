@@ -9,12 +9,19 @@ import http.client
 from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
+from workspace import Workspace
 
 ROOT = Path(__file__).parent
 PERSONAS = {'alex': {'name': 'Alex Morgan', 'workspace': 'studio'}, 'sam': {'name': 'Sam Rivera', 'workspace': 'studio'}, 'jules': {'name': 'Jules Chen', 'workspace': 'field'}}
 
 
-class Store:
+class Store(Workspace):
+    @staticmethod
+    def persona(actor):
+        if not isinstance(actor, str) or actor not in PERSONAS:
+            raise ValueError('Unknown demo persona.')
+        return PERSONAS[actor]
+
     def __init__(self, path, model=None, endpoint='http://127.0.0.1:11434'):
         self.model, self.endpoint = model, endpoint
         parsed = urlparse(endpoint)
@@ -36,12 +43,13 @@ class Store:
             samples = [('Launch handoff', 'The studio launch review is Thursday at 10:00. Alex owns the accessibility checklist. Sam owns the customer walkthrough. The release gate is an approved accessibility review.', 'alex', 'studio', 'workspace'), ('Research debrief', 'Five participants tested the onboarding flow. Three missed the workspace switcher. The team agreed to label the switcher and test the revised navigation before release.', 'sam', 'studio', 'workspace'), ('Private reflection', 'My private coaching note: protect a quiet hour on Friday for planning. This note is visible only to Alex.', 'alex', 'studio', 'private'), ('Field operations', 'The field workspace equipment handoff is Monday. Jules owns the inventory review. This document belongs to the field workspace.', 'jules', 'field', 'workspace')]
             self.db.executemany('INSERT INTO docs(title,body,owner,workspace,visibility) VALUES(?,?,?,?,?)', samples)
             self.db.execute("INSERT INTO meta VALUES('seeded','yes')")
+        self.upgrade()
         self.reindex()
 
     def reindex(self):
         if self.fts:
             self.db.execute('DELETE FROM search')
-            self.db.execute('INSERT INTO search(rowid,title,body) SELECT id,title,body FROM docs')
+            self.db.execute('INSERT INTO search(rowid,title,body) SELECT id,title,body FROM docs WHERE deleted=0')
         self.db.commit()
 
     def log(self, actor, action, detail):
@@ -49,8 +57,8 @@ class Store:
         self.db.commit()
 
     def visible(self, actor):
-        p = PERSONAS[actor]
-        return self.db.execute("SELECT * FROM docs WHERE workspace=? AND (visibility='workspace' OR owner=?) ORDER BY id", (p['workspace'], actor)).fetchall()
+        p = self.persona(actor)
+        return self.db.execute("SELECT * FROM docs WHERE deleted=0 AND workspace=? AND (visibility='workspace' OR owner=?) ORDER BY id", (p['workspace'], actor)).fetchall()
 
     def state(self, actor):
         p = PERSONAS[actor]
@@ -137,7 +145,7 @@ class Store:
             if action == 'delete':
                 if not old:
                     raise ValueError('Choose a document.')
-                self.db.execute('DELETE FROM docs WHERE id=?', (doc_id,))
+                self.db.execute('UPDATE docs SET deleted=1 WHERE id=?', (doc_id,))
             else:
                 if not isinstance(data.get('title'), str) or not isinstance(data.get('body'), str):
                     raise ValueError('Title and body must be text.')
@@ -151,6 +159,10 @@ class Store:
                     self.db.execute('UPDATE docs SET title=?,body=?,visibility=?,version=version+1 WHERE id=?', (title, body, visibility, doc_id))
                 else:
                     self.db.execute('INSERT INTO docs(title,body,owner,workspace,visibility) VALUES(?,?,?,?,?)', (title, body, actor, p['workspace'], visibility))
+            if action == 'save':
+                if doc_id is None:
+                    doc_id = self.db.execute('SELECT last_insert_rowid()').fetchone()[0]
+                self.snapshot(doc_id)
             self.reindex()
             self.log(actor, action, 'Document ' + str(doc_id or 'created'))
             return {}
