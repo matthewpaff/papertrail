@@ -82,3 +82,32 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(self.store.source('alex', doc, 2)['body'], 'Changed body.')
         self.assertTrue(self.store.ask('sam', 'amber')['abstained'])
         self.assertEqual(self.store.ask('alex', 'amber')['sources'][0]['version'], 3)
+
+    def test_archive_preview_is_read_only_and_import_deduplicates(self):
+        self.save(collection='Exported', tags=['draft'])
+        archive = self.store.export_documents('alex')
+        self.assertNotIn('Research debrief', [d['title'] for d in archive['documents']])
+        before = self.store.db.execute('SELECT count(*) FROM docs').fetchone()[0]
+        preview = self.store.preview_import('alex', archive)
+        self.assertEqual(preview['create_count'], 0)
+        self.assertEqual(self.store.db.execute('SELECT count(*) FROM docs').fetchone()[0], before)
+        imported = self.store.import_documents('alex', archive)
+        self.assertEqual(imported['created'], [])
+        self.assertEqual(imported['skipped'], len(archive['documents']))
+        clone = self.store.import_documents('jules', archive)
+        self.assertEqual(len(clone['created']), len(archive['documents']))
+        for doc in clone['created']:
+            self.assertEqual(self.store.source('jules', doc)['workspace'], 'field')
+            self.assertEqual(self.store.source('jules', doc)['owner'], 'jules')
+
+    def test_archive_validation_is_all_or_nothing_and_rejects_identity_fields(self):
+        good = {'title': 'Atomic new', 'body': 'New body.', 'visibility': 'private', 'collection': '', 'tags': []}
+        archive = {'format': 'papertrail.documents.v1', 'documents': [good, dict(good, owner='sam')]}
+        before = self.store.db.execute('SELECT count(*) FROM docs').fetchone()[0]
+        with self.assertRaises(ValueError):
+            self.store.import_documents('alex', archive)
+        self.assertEqual(self.store.db.execute('SELECT count(*) FROM docs').fetchone()[0], before)
+        archive['documents'] = [good, good]
+        result = self.store.import_documents('alex', archive)
+        self.assertEqual(len(result['created']), 1)
+        self.assertEqual(result['skipped'], 1)
