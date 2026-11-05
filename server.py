@@ -167,10 +167,12 @@ class Store(Workspace):
                 visibility = data.get('visibility', 'private')
                 if visibility not in ('private', 'workspace'):
                     raise ValueError('Invalid visibility.')
+                metadata = {'collection': data.get('collection', old['collection'] if old else ''), 'tags': data.get('tags', json.loads(old['tags']) if old else [])}
+                collection, tags = self.metadata(metadata)
                 if old:
-                    self.db.execute('UPDATE docs SET title=?,body=?,visibility=?,version=version+1 WHERE id=?', (title, body, visibility, doc_id))
+                    self.db.execute('UPDATE docs SET title=?,body=?,visibility=?,collection=?,tags=?,version=version+1 WHERE id=?', (title, body, visibility, collection, json.dumps(tags), doc_id))
                 else:
-                    self.db.execute('INSERT INTO docs(title,body,owner,workspace,visibility) VALUES(?,?,?,?,?)', (title, body, actor, p['workspace'], visibility))
+                    self.db.execute('INSERT INTO docs(title,body,owner,workspace,visibility,collection,tags) VALUES(?,?,?,?,?,?,?)', (title, body, actor, p['workspace'], visibility, collection, json.dumps(tags)))
             if action == 'save':
                 if doc_id is None:
                     doc_id = self.db.execute('SELECT last_insert_rowid()').fetchone()[0]
