@@ -5,6 +5,7 @@ import re
 import secrets
 import sqlite3
 import argparse
+import time
 import http.client
 from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler
@@ -125,6 +126,8 @@ class Store(Workspace):
             return self.bookmark(actor, data)
         if action == 'bookmarks':
             return {'ids': self.bookmarks(actor)}
+        if action == 'cancel-proposal':
+            return self.cancel_proposal(actor, data.get('proposal'))
         if action in ('save', 'delete'):
             doc_id = data.get('id')
             if doc_id is not None and (type(doc_id) is not int or doc_id < 1):
@@ -171,14 +174,12 @@ class Store(Workspace):
                 self.log(actor, 'denied', 'Cross-workspace proposal denied')
                 raise ValueError('Cross-workspace actions are denied.')
             token = secrets.token_urlsafe(24)
-            self.db.execute('INSERT INTO proposals VALUES(?,?,?,?,?)', (token, actor, p['workspace'], title, 'pending'))
+            expires = int(time.time()) + 600
+            self.db.execute('INSERT INTO proposals(id,actor,workspace,title,status,expires) VALUES(?,?,?,?,?,?)', (token, actor, p['workspace'], title, 'pending', expires))
             self.log(actor, 'proposed', title)
-            return {'proposal': token, 'title': title, 'workspace': p['workspace']}
+            return {'proposal': token, 'title': title, 'workspace': p['workspace'], 'expires': expires}
         if action == 'approve':
-            row = self.db.execute('SELECT * FROM proposals WHERE id=?', (str(data.get('proposal', '')),)).fetchone()
-            if not row or row['actor'] != actor or row['workspace'] != p['workspace'] or row['status'] != 'pending':
-                self.log(actor, 'denied', 'Invalid, foreign, or already used approval')
-                raise ValueError('Approval is unavailable, belongs to another persona, or was already used.')
+            row = self.proposal(actor, data.get('proposal'))
             with self.db:
                 self.db.execute("UPDATE proposals SET status='executed' WHERE id=?", (row['id'],))
                 self.db.execute('INSERT INTO tasks(proposal,title,owner,workspace) VALUES(?,?,?,?)', (row['id'], row['title'], actor, p['workspace']))
