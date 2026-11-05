@@ -38,3 +38,26 @@ async function renderLibrary(){
   libraryPager.append(previous,next);
 }
 window.addEventListener('papertrail-state',()=>renderLibrary().catch(e=>toast(e.message)));
+
+const sourceDialog=node('dialog',undefined,'source-dialog');
+sourceDialog.setAttribute('aria-label','Source details and version history');
+document.body.append(sourceDialog);
+async function showSource(id, version){
+  const [detail,history]=await Promise.all([api('source',{id,...(version?{version}:{})}),api('history',{id})]);
+  const doc=detail.source;
+  sourceDialog.replaceChildren();
+  const top=node('div',undefined,'section-title');
+  top.append(node('span','SOURCE #'+id+' · VERSION '+doc.version,'eyebrow'),control('button','Close',()=>sourceDialog.close()));
+  sourceDialog.append(top,node('h2',doc.title),node('p',doc.owner+' · '+doc.workspace+' · '+doc.visibility,'section-note'));
+  const text=node('pre',doc.body,'source-body');sourceDialog.append(text);
+  sourceDialog.append(node('h3','Version history'));
+  const versions=node('div',undefined,'history-list');
+  for(const entry of history.versions){
+    const row=node('div',undefined,'history-row');
+    row.append(control('button','Version '+entry.version,()=>showSource(id,entry.version)),node('span',entry.title),node('small',entry.created+' UTC'));
+    if(entry.version===doc.version)row.append(node('span','Viewing','badge'));
+    versions.append(row);
+  }
+  sourceDialog.append(versions);
+  if(!sourceDialog.open)sourceDialog.showModal();
+}
